@@ -1,0 +1,61 @@
+---
+title: Sprite animation
+description: Animate pixel sprites with key poses, timing, squash and stretch, and sprite sheets, then play them back in code.
+---
+<article class="lesson">
+<h1>Sprite animation</h1>
+
+<h2>Frames, poses and timing</h2>
+<ul>
+  <li><b>Idle</b>: 2–4 frames at 4–6 FPS. Gentle breathing or bobbing.</li>
+  <li><b>Run</b>: 4–8 frames at 10–12 FPS. Contact, down, passing and up poses.</li>
+  <li><b>Jump</b>: separate single frames for rising, peak and falling, chosen from vertical velocity rather than time.</li>
+  <li><b>Attack</b>: anticipation (a slow wind-up) → action (1 fast frame) → follow-through (recovery).</li>
+</ul>
+<p>Frames don't all have to last the same time. Holding a key pose longer adds weight and punch.</p>
+
+<h2>Squash &amp; stretch, even at 8 px</h2>
+<div class="art-row">
+  <figure><canvas data-art="..kkkk..|.kggggk.|kgwgwggk|kggggggk|kggggggk|kkkkkkkk" data-pal='{"k":"#1d1b26","g":"#5fd39c","w":"#ece9f5"}' data-scale="20"></canvas><figcaption>Frame 1: rest</figcaption></figure>
+  <figure><canvas data-art="........|..kkkk..|.kggggk.|kgwgwggk|kggggggk|kkkkkkkk" data-pal='{"k":"#1d1b26","g":"#5fd39c","w":"#ece9f5"}' data-scale="20"></canvas><figcaption>Frame 2: squashed (same width, 1 px shorter)</figcaption></figure>
+  <figure><canvas id="slime" width="160" height="120" style="border:3px solid var(--border);image-rendering:pixelated;max-width:100%"></canvas><figcaption>Playing at 3 FPS</figcaption></figure>
+</div>
+
+<h2>Sprite sheets</h2>
+<p>Put all the frames in one image, either as a horizontal strip or a grid of equal cells. The <a href="/pixel/editor">GameGuy pixel editor</a> exports strips. In code, the frame index picks the source rectangle:</p>
+<script type="text/x-code">
+  // 16x16 cells in a horizontal strip, 8 FPS run cycle
+  const int CELL = 16, FRAMES = 4;
+  const float FPS = 8f;
+
+  int frame = (int)(animTime * FPS) % FRAMES;
+  var src = new SdlFRect { x = frame * CELL, y = 0, w = CELL, h = CELL };
+  Sdl.Render.RenderTexture(renderer, sheet, &src, &dst);
+
+  // State-driven choice
+  int row = !onGround ? (vy < 0 ? JumpUp : Fall) : MathF.Abs(vx) > 5 ? Run : Idle;
+</script>
+
+<div class="callout tip"><span class="t">RESET ON STATE CHANGE</span>
+<p>When the animation changes (idle → run), reset <code>animTime</code> to 0 so the new cycle starts on its first frame, not partway through.</p>
+</div>
+
+<div class="exercise"><b>EXERCISE</b>
+<p>Make a 4-frame, 16×16 run cycle in the editor with onion skinning on. Export it as a strip, load it in Coin Dash with <code>SdlImage.LoadTexture</code>, and switch between idle, run and jump frames based on the player's state.</p>
+</div>
+</article>
+
+<script>
+(function () {
+  var c = document.getElementById("slime"); if (!c) return;
+  var g = c.getContext("2d"), s = 20;
+  var f = [["..kkkk..", ".kggggk.", "kgwgwggk", "kggggggk", "kggggggk", "kkkkkkkk"], ["........", "..kkkk..", ".kggggk.", "kgwgwggk", "kggggggk", "kkkkkkkk"]];
+  var P = { k: "#1d1b26", g: "#5fd39c", w: "#ece9f5" }, i = 0;
+  function draw() {
+    g.fillStyle = "#ece9f5"; g.fillRect(0, 0, 160, 120);
+    f[i].forEach(function (r, y) { for (var x = 0; x < r.length; x++) if (P[r[x]] && r[x] !== ".") { g.fillStyle = P[r[x]]; g.fillRect(x * s, y * s, s, s); } });
+    i = 1 - i;
+  }
+  draw(); setInterval(draw, 333);
+})();
+</script>

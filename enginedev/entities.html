@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Entities: OOP, components &amp; ECS · GameGuy</title>
+<meta name="description" content="Three ways to model game objects (inheritance, component composition and Entity-Component-System) with C# implementations and trade-offs.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="/assets/js/lessons.js" defer></script>
+<script src="/assets/js/main.js" defer></script>
+</head>
+<body data-track="enginedev" data-slug="entities">
+<article class="lesson">
+<h1>Entities: OOP, components &amp; ECS</h1>
+
+<p>Every engine has to answer the question "what is a game object?". There are three classic answers, and each one fixes a problem with the previous one.</p>
+
+<h2>1. Inheritance</h2>
+<script type="text/x-code">
+  abstract class GameObject { public float2 Pos; public abstract void Update(float dt); }
+  class Enemy : GameObject { ... }
+  class FlyingEnemy : Enemy { ... }
+  class ShootingFlyingEnemy : FlyingEnemy { ... }   // and then design wants a swimming shooter
+</script>
+<p>It's simple at first, but it gets rigid. Behaviour is fixed at compile time, and shared features end up pushed into a bloated base class.</p>
+
+<h2>2. Component composition (Unity/Godot style)</h2>
+<script type="text/x-code">
+  sealed class Entity
+  {
+      public float2 Pos;
+      private readonly List<Component> _components = [];
+      public T Add<T>(T c) where T : Component { c.Owner = this; _components.Add(c); return c; }
+      public T? Get<T>() where T : Component => _components.OfType<T>().FirstOrDefault();
+      public void Update(float dt) { foreach (var c in _components) c.Update(dt); }
+  }
+
+  abstract class Component { public Entity Owner = null!; public virtual void Update(float dt) { } }
+  sealed class Flyer : Component   { public override void Update(float dt) => Owner.Pos.Y += MathF.Sin(...); }
+  sealed class Shooter : Component { /* ... */ }
+
+  var bat = new Entity();
+  bat.Add(new Flyer()); bat.Add(new Shooter());     // mix and match at runtime
+</script>
+<p>This is flexible and easy to understand. Most engines with editors work this way. The cost is that each component is a separate heap object, updates are virtual calls in no particular order, and memory is scattered.</p>
+
+<h2>3. ECS: Entity-Component-System</h2>
+<ul>
+  <li><b>Entity</b>: just an ID (an <code>int</code>).</li>
+  <li><b>Component</b>: plain <code>struct</code> data with no methods, stored in tightly packed arrays.</li>
+  <li><b>System</b>: a function that loops over every entity with a given set of components.</li>
+</ul>
+<script type="text/x-code">
+  struct Position { public float2 Value; }
+  struct Velocity { public float2 Value; }
+  struct Gravity  { public float Strength; }
+
+  // One "sparse set" per component type: dense packed data + entity -> index lookup.
+  sealed class ComponentStore<T> where T : struct
+  {
+      private T[] _dense = new T[256];
+      private int[] _entityOf = new int[256];
+      private int[] _sparse = Enumerable.Repeat(-1, 4096).ToArray();   // entity -> dense index
+      public int Count { get; private set; }
+
+      public ref T Add(int entity)
+      {
+          if (Count == _dense.Length) { Array.Resize(ref _dense, Count * 2); Array.Resize(ref _entityOf, Count * 2); }
+          _sparse[entity] = Count; _entityOf[Count] = entity;
+          return ref _dense[Count++];
+      }
+      public bool Has(int e) => _sparse[e] >= 0;
+      public ref T Get(int e) => ref _dense[_sparse[e]];
+      public Span<T> Span => _dense.AsSpan(0, Count);
+      public int EntityAt(int i) => _entityOf[i];
+  }
+
+  // A system: tight loop over packed data. Cache-friendly, easy to parallelise.
+  static void Integrate(ComponentStore<Position> pos, ComponentStore<Velocity> vel, float dt)
+  {
+      var v = vel.Span;
+      for (var i = 0; i < v.Length; i++)
+      {
+          var e = vel.EntityAt(i);
+          if (pos.Has(e)) pos.Get(e).Value += v[i].Value * dt;
+      }
+  }
+</script>
+
+<h2>Comparison</h2>
+<div class="table-wrap"><table>
+<tr><th></th><th>Inheritance</th><th>Components</th><th>ECS</th></tr>
+<tr><td>Flexibility</td><td>Low</td><td>High</td><td>High</td></tr>
+<tr><td>Performance with 100k objects</td><td>Poor</td><td>Okay</td><td>Excellent</td></tr>
+<tr><td>Ease of learning</td><td>Easiest</td><td>Easy</td><td>Different way of thinking</td></tr>
+<tr><td>Serialisation and networking</td><td>Hard</td><td>Medium</td><td>Easy (it's all plain data)</td></tr>
+<tr><td>Multithreading</td><td>Hard</td><td>Hard</td><td>Natural: systems map to jobs (<code>Brutal.Concurrency</code>)</td></tr>
+</table></div>
+
+<div class="callout tip"><span class="t">PRAGMATIC ADVICE</span>
+<p>For a small game, a <b>plain struct array per entity type</b> (<code>Enemy[] enemies</code>, <code>Bullet[] bullets</code>) beats all three approaches for simplicity. Use ECS when you have many entity types sharing behaviours <em>and</em> large counts, as in colony sims, RTS games and bullet hells. Established C# ECS libraries such as Arch, DefaultEcs and Friflo work well alongside BRUTAL, because BRUTAL doesn't impose an object model.</p>
+</div>
+
+<div class="exercise"><b>EXERCISE</b>
+<p>Using <code>ComponentStore&lt;T&gt;</code>, spawn 50,000 entities with Position and Velocity, and give half of them Gravity. Write <code>ApplyGravity</code> and <code>Integrate</code> systems and time 600 steps. Then split <code>Integrate</code> into 4 <code>IJob</code>s on BRUTAL's <code>JobScheduler</code> and compare the timings.</p>
+</div>
+</article>
+</body>
+</html>

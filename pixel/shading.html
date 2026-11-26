@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Shading, dithering &amp; anti-aliasing · GameGuy</title>
+<meta name="description" content="Shade pixel art from a consistent light source, avoid pillow shading, and use dithering and manual anti-aliasing with restraint.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="/assets/js/lessons.js" defer></script>
+<script src="/assets/js/main.js" defer></script>
+</head>
+<body data-track="pixel" data-slug="shading">
+<article class="lesson">
+<h1>Shading, dithering &amp; anti-aliasing</h1>
+
+<h2>Pick a light source</h2>
+<p>Choose one light direction, usually top-left, and keep it the same for <em>every</em> sprite in the game. Shade the form as if it were a 3D object: surfaces facing the light are lighter, and surfaces facing away are darker.</p>
+<div class="art-row">
+  <figure><canvas data-art="..kkkkkk..|.kllmmmmk.|kllhlmmmdk|klhllmmmdk|kllmmmmddk|kmmmmmmddk|kmmmmmdddk|.kmmddddk.|..kkkkkk.." data-pal='{"k":"#1d1b26","d":"#7a2a3a","m":"#c2407e","l":"#e87a9a","h":"#fff4c2"}' data-scale="20"></canvas><figcaption>✓ Light from the top-left: reads as a sphere</figcaption></figure>
+  <figure><canvas data-art="..kkkkkk..|.kddddddk.|kdmmmmmmdk|kdmllllmdk|kdmlhhlmdk|kdmllllmdk|kdmmmmmmdk|.kddddddk.|..kkkkkk.." data-pal='{"k":"#1d1b26","d":"#7a2a3a","m":"#c2407e","l":"#e87a9a","h":"#fff4c2"}' data-scale="20"></canvas><figcaption>✗ "Pillow shading": dark edges, bright centre, no light source</figcaption></figure>
+</div>
+
+<h2>Dithering</h2>
+<p><b>Dithering</b> mixes two colours in a pattern (often a checkerboard) to suggest a colour in between them, or a texture.</p>
+<div class="art-row">
+  <figure><canvas data-art="aaaaabababcbcbcc|aaaababababcbccc|aaaaabababcbcbcc|aaaababababcbccc" data-pal='{"a":"#2f7de1","b":"#7cc7ff","c":"#ece9f5"}' data-scale="16" data-grid="off"></canvas><figcaption>Checker dithering: a sky gradient with only 3 colours</figcaption></figure>
+</div>
+<ul>
+  <li>✓ Good for: large gradients (skies), textures (stone, fabric), and retro palettes with very few colours.</li>
+  <li>✗ Avoid it on small sprites and moving objects, where it flickers and turns into noise.</li>
+</ul>
+
+<h2>Manual anti-aliasing (AA)</h2>
+<p>AA softens a stair-step edge by placing <b>intermediate colours</b> in the corners of the steps. Use it on <b>internal</b> lines and curves. Leave the <b>outer silhouette</b> crisp, especially for sprites that move over different backgrounds, because AA pixels blended toward one background colour look wrong over another.</p>
+<div class="art-row">
+  <figure><canvas data-art="kkk.......|...kkk....|......kkk.|.........k" data-pal='{"k":"#1d1b26"}' data-scale="18"></canvas><figcaption>No AA: crisp but steppy</figcaption></figure>
+  <figure><canvas data-art="kkkg......|..gkkkg...|.....gkkkg|........gk" data-pal='{"k":"#1d1b26","g":"#a6a2b8"}' data-scale="18"></canvas><figcaption>AA: grey pixels in the step corners</figcaption></figure>
+</div>
+
+<div class="exercise"><b>EXERCISE</b>
+<p>Draw a 16×16 rock with a 4-colour ramp lit from the top-left. Add 2–3 AA pixels where the internal crack meets the top surface. Compare it with a version without AA when shown at 1× and 4×.</p>
+</div>
+</article>
+</body>
+</html>

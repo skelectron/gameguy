@@ -1,0 +1,63 @@
+---
+title: IDisposable, using & resource lifetime
+description: Deterministic cleanup in C# with IDisposable and using declarations, and why BRUTAL samples declare objects in dependency order.
+---
+<article class="lesson">
+<h1>IDisposable, using &amp; resource lifetime</h1>
+
+<p>The GC cleans up <em>memory</em>, but not windows, GPU buffers, audio devices, file handles or native allocations. Those need <b>deterministic</b> cleanup, which means releasing them at a known moment and in the right order. C# handles this with <code>IDisposable</code>.</p>
+
+<h2>The pattern</h2>
+<script type="text/x-code">
+  sealed class Texture : IDisposable
+  {
+      private uint _handle;
+      public Texture(string path) { _handle = LoadOnGpu(path); }
+
+      public void Dispose()
+      {
+          if (_handle == 0) return;   // safe to call twice
+          DeleteOnGpu(_handle);
+          _handle = 0;
+      }
+  }
+</script>
+
+<h2>using declarations</h2>
+<script type="text/x-code">
+  static void Run()
+  {
+      using var window = Glfw.CreateWindow(info);   // 1st created
+      using var program = LinkProgram();             // 2nd created
+      using var font = LoadFont();                   // 3rd created
+
+      // ... game loop ...
+
+  }   // disposed in REVERSE: font, program, window
+</script>
+<p>A <code>using var</code> is disposed at the end of the enclosing scope, even if an exception is thrown. Several of them are disposed in <b>reverse order of declaration</b>, and BRUTAL relies on that everywhere.</p>
+
+<h2>Dependency order: the BRUTAL rule</h2>
+<p>From <code>DemoSdl.cs</code>: <em>"Declared in dependency order, so the using declarations dispose them in reverse when Run returns."</em> If B depends on A, declare A first:</p>
+<div class="diagram">
+<svg viewBox="0 0 600 120" font-family="Inter, sans-serif" font-size="13" fill="currentColor">
+  <g stroke="currentColor" stroke-width="2.5" fill="none"><rect x="10" y="20" width="120" height="40"/><rect x="170" y="20" width="120" height="40"/><rect x="330" y="20" width="120" height="40"/><rect x="490" y="20" width="100" height="40"/></g>
+  <g text-anchor="middle"><text x="70" y="45">Glfw.Init</text><text x="230" y="45">Window (+ GL)</text><text x="390" y="45">Shader program</text><text x="540" y="45">Buffers</text></g>
+  <g stroke="#1f9d72" stroke-width="2.5"><path d="M132 40 h34"/><path d="M292 40 h34"/><path d="M452 40 h34"/></g>
+  <text x="300" y="90" text-anchor="middle" fill="#1f9d72">create →</text>
+  <text x="300" y="112" text-anchor="middle" fill="#e8483b">← destroy (reverse)</text>
+</svg>
+</div>
+<ul>
+  <li>GL objects must be deleted <b>while the context exists</b>, so you declare the window before the program.</li>
+  <li>Process-wide state (<code>Glfw.Init</code>/<code>Terminate</code>) wraps everything in <code>try/finally</code>, and the disposable objects live inside a <code>Run()</code> method. That way they're all gone before <code>Terminate</code> runs.</li>
+  <li>Some handles, such as OpenGL vertex arrays and OpenAL sources, <b>aren't</b> <code>IDisposable</code> in BRUTAL. The samples delete them by hand at the end of <code>Run</code>.</li>
+</ul>
+
+<h2>Finalizers: the safety net (avoid it)</h2>
+<p>A finalizer (<code>~Texture()</code>) runs on the GC's thread at some unknown time. GPU and windowing APIs usually must be called from the main thread, so finalizers are the wrong place to release them. Use <code>Dispose</code>, and in debug builds log a warning if something was never disposed.</p>
+
+<div class="exercise"><b>EXERCISE</b>
+<p>Write a <code>ResourceTracker</code> class that counts live disposables. Add <code>Track()</code> and <code>Untrack()</code> calls to a fake <code>Texture</code>, and at shutdown print any resources that leaked, along with the stack trace captured when each was created. Real engines ship a tool just like this.</p>
+</div>
+</article>

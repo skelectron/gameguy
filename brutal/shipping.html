@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Shipping: license, credits &amp; builds · GameGuy</title>
+<meta name="description" content="How to follow the BRUTAL License v1.0 (credits, logo, NOTICE.txt) and how to publish self-contained .NET 10 builds of your game.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="/assets/js/lessons.js" defer></script>
+<script src="/assets/js/main.js" defer></script>
+</head>
+<body data-track="brutal" data-slug="shipping">
+<article class="lesson">
+<h1>Shipping: license, credits &amp; builds</h1>
+
+<div class="objectives"><b>You will learn</b>
+<ul>
+  <li>Exactly what the BRUTAL License v1.0 requires when you ship</li>
+  <li>How to publish a self-contained build for Windows, Linux and macOS</li>
+  <li>A pre-release checklist</li>
+</ul></div>
+
+<div class="callout info"><span class="t">NOT LEGAL ADVICE</span>
+<p>This is a plain-English summary for learners. Always read <code>LICENSE.txt</code> and <code>NOTICE.txt</code> in the repository yourself. They are the real terms.</p>
+</div>
+
+<h2>The license in plain English</h2>
+<p>BRUTAL is distributed under the <b>BRUTAL License v1.0</b>, which is based on MIT. You may use, copy, modify, merge, publish, distribute, sublicense and <b>sell</b> software that uses it, with <b>no royalties</b>. The extra conditions apply when you ship a <b>Product</b>, meaning a game or application distributed to end users:</p>
+<div class="table-wrap"><table>
+<tr><th>Clause</th><th>What you must do</th></tr>
+<tr><td><b>2.1 Credits</b></td><td>Show the BRUTAL copyright notice in your Credits screen or equivalent.</td></tr>
+<tr><td><b>2.2 Logo</b></td><td>Show the BRUTAL logo (from <a href="https://ahwoo.com/brutal-branding">ahwoo.com/brutal-branding</a>) <em>before</em> gameplay or the app's main function. Don't alter it except by scaling. Show it long enough to read, and at least as prominently as any other party's logo.</td></tr>
+<tr><td><b>2.3 NOTICE</b></td><td>Ship <code>NOTICE.txt</code> alongside all copies.</td></tr>
+</table></div>
+<p><b>Exemptions from the logo rule:</b> written permission from Ahwoo, products that can't display graphics, non-profit projects, and cases where the logo would harm the application's purpose. A separate commercial licence can also be arranged with Ahwoo.</p>
+<p>Third-party components (GLFW, SDL, Box2D, ImGui and so on) keep <b>their own licences</b>. These are listed in the <code>LICENSES/</code> folders of the packages that redistribute native code, and you should include them too.</p>
+
+<h3>What NOTICE.txt says</h3>
+<script type="text/x-code" data-lang="none" data-file="NOTICE.txt">
+  BRUTAL game development framework is Copyright (c) 2024 Ahwoo Limited.
+
+  This product is built with BRUTAL, a game development framework by Ahwoo Limited, used under the BRUTAL License v1.0.
+
+  www.ahwoo.com/brutal
+</script>
+
+<h2>A simple splash + credits flow</h2>
+<script type="text/x-code">
+  enum Screen { BrutalSplash, Title, Playing, Credits }
+
+  // BrutalSplash: draw the official logo texture (unaltered, scaled to fit) for ~2 seconds,
+  // then move to Title. Allow skipping only after it has been readable.
+  // Credits: include the line
+  //   "BRUTAL game development framework is Copyright (c) 2024 Ahwoo Limited."
+</script>
+<p>This "scene" structure is a tiny version of the state stack taught in <a href="/enginedev/scenes">Scenes &amp; state stacks</a>.</p>
+
+<h2>Building for players</h2>
+<p>For a normal project (<code>.csproj</code>), publish a <b>self-contained</b> build so players don't need .NET installed:</p>
+<script type="text/x-code" data-lang="bash">
+  # Windows
+  dotnet publish -c Release -r win-x64 --self-contained true
+
+  # Linux
+  dotnet publish -c Release -r linux-x64 --self-contained true
+
+  # macOS (Apple silicon)
+  dotnet publish -c Release -r osx-arm64 --self-contained true
+</script>
+<p>The output goes to <code>bin/Release/net10.0/&lt;rid&gt;/publish/</code>. The BRUTAL packages bring their native libraries for these three platforms, so check that the native <code>.dll</code>/<code>.so</code>/<code>.dylib</code> files ended up next to your executable.</p>
+<p>A file-based app (<code>CoinDash.cs</code>) can be turned into a project at any time with <code>dotnet project convert CoinDash.cs</code>.</p>
+
+<h3>Optional: Native AOT</h3>
+<p>Adding <code>-p:PublishAot=true</code> compiles your game to native code, which gives faster startup and no JIT. Test it thoroughly, because reflection-heavy code may need changes. BRUTAL's own interop layer is designed for direct native calls.</p>
+
+<h2>Release checklist</h2>
+<ul>
+  <li>☐ BRUTAL logo shown before gameplay (or you qualify for an exemption)</li>
+  <li>☐ Copyright notice in the credits</li>
+  <li>☐ <code>NOTICE.txt</code> and third-party <code>LICENSES</code> shipped with the build</li>
+  <li>☐ Tested on a clean machine with no SDK installed</li>
+  <li>☐ Tested at several window sizes and refresh rates (60/144 Hz) to confirm the fixed timestep works</li>
+  <li>☐ Logs are written to a user-writable folder, not the install folder</li>
+  <li>☐ Controller support, if you claim it, works through GLFW/SDL gamepads</li>
+</ul>
+
+<div class="callout tip"><span class="t">WHAT NEXT?</span>
+<p>You've shipped a game on a framework. Next, learn to build the engine layer yourself in the <a href="/enginedev/">Engine &amp; Framework Development</a> track, or improve your design skills in <a href="/design/">Game Design</a>.</p>
+</div>
+</article>
+</body>
+</html>

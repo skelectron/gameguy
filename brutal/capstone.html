@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Capstone: Coin Dash (a tiny pixel game) · GameGuy</title>
+<meta name="description" content="Build Coin Dash, a complete single-screen pixel platformer in BRUTAL with SDL, a fixed timestep, tile collision, coyote time and jump buffering.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="/assets/js/lessons.js" defer></script>
+<script src="/assets/js/main.js" defer></script>
+</head>
+<body data-track="brutal" data-slug="capstone">
+<article class="lesson">
+<h1>Capstone: Coin Dash</h1>
+
+<div class="objectives"><b>You will build</b>
+<ul>
+  <li>A complete single-screen platformer in a single file of about 200 lines</li>
+  <li>A tile map from strings, AABB collision resolved one axis at a time</li>
+  <li>Responsive controls: acceleration, coyote time, jump buffering and variable jump height</li>
+  <li>A HUD, a win state and a restart key</li>
+</ul></div>
+
+<p>This brings the whole track together: the <a href="/brutal/game-loop">fixed-timestep loop</a>, <a href="/brutal/sdl-2d">SDL's integer-scaled renderer</a> and <a href="/design/game-feel">game-feel techniques</a>. Everything is drawn with rectangles, so you need no asset files. Swapping in real sprites is your first upgrade.</p>
+
+<div class="demo"><canvas id="preview" width="320" height="176" aria-label="Playable browser preview of Coin Dash"></canvas>
+<div class="controls"><b>Browser preview</b><span>(the same logic, ported to JS): <kbd>←</kbd><kbd>→</kbd> / <kbd>A</kbd><kbd>D</kbd> move · <kbd>Space</kbd> jump · <kbd>R</kbd> restart. Click the game first.</span></div></div>
+
+<h2>The full game</h2>
+<script type="text/x-code" data-file="CoinDash.cs">
+  #:property AllowUnsafeBlocks=true
+  #:package Ahwoo.Brutal.Sdl@2026.10.3
+
+  using System.Diagnostics;
+  using Brutal.SdlApi;
+
+  Sdl.Init.Initialize(SdlInitFlags.Video);
+  try { new CoinDash().Run(); }
+  finally { Sdl.Init.Quit(); }
+
+  readonly record struct Input(bool Left, bool Right, bool JumpHeld);
+
+  sealed class CoinDash
+  {
+      const int TILE = 16, COLS = 20, ROWS = 11;
+      const int VIEW_W = COLS * TILE, VIEW_H = ROWS * TILE;   // 320 x 176
+      const float STEP = 1f / 60f;
+
+      // ---- Tuning: play with these! ----
+      const float RUN_ACCEL = 1400f, RUN_MAX = 110f, GROUND_FRICTION = 12f;
+      const float GRAVITY = 950f, JUMP_SPEED = 330f, JUMP_CUT = 120f, MAX_FALL = 400f;
+      const float COYOTE_TIME = 0.08f, JUMP_BUFFER = 0.10f;
+      const float PW = 10, PH = 14;                            // player hitbox
+
+      static readonly string[] Level =
+      [
+          "....................",
+          "....................",
+          "......c.......c.....",
+          ".....###.....###....",
+          "....................",
+          "..c.......c.......c.",
+          ".###.....###.....###",
+          "....................",
+          "........c...........",
+          ".p.....###....c.....",
+          "#########..#########",
+      ];
+
+      float px, py, vx, vy, spawnX, spawnY;
+      bool onGround, facingLeft, won;
+      float coyote, jumpBuffer, time;
+      float[] coinX = [], coinY = [];
+      bool[] taken = [];
+      int score;
+
+      void Reset()
+      {
+          var xs = new List<float>(); var ys = new List<float>();
+          for (var ty = 0; ty < ROWS; ty++)
+          for (var tx = 0; tx < COLS; tx++)
+          {
+              if (Level[ty][tx] == 'p') { spawnX = tx * TILE + 3; spawnY = ty * TILE + (TILE - PH); }
+              if (Level[ty][tx] == 'c') { xs.Add(tx * TILE + 8); ys.Add(ty * TILE + 8); }
+          }
+          coinX = [.. xs]; coinY = [.. ys]; taken = new bool[xs.Count];
+          (px, py, vx, vy) = (spawnX, spawnY, 0, 0);
+          score = 0; time = 0; won = false;
+      }
+
+      public unsafe void Run()
+      {
+          using var window = Sdl.Video.CreateWindow("Coin Dash", VIEW_W * 4, VIEW_H * 4, SdlWindowFlags.Resizable);
+          using var renderer = Sdl.Render.CreateRenderer(window, null!);
+          Sdl.Render.SetRenderVSync(renderer, 1);
+          Sdl.Render.SetRenderLogicalPresentation(renderer, VIEW_W, VIEW_H, SdlRendererLogicalPresentation.IntegerScale);
+
+          Reset();
+          var clock = Stopwatch.StartNew();
+          var previous = clock.Elapsed.TotalSeconds;
+          var accumulator = 0.0;
+          var running = true;
+
+          while (running)
+          {
+              // 1. Events: "just pressed" actions
+              while (Sdl.Events.PollEvent(out var ev))
+              {
+                  if (ev.type is SdlEventType.Quit or SdlEventType.WindowCloseRequested)
+                      running = false;
+                  else if (ev.type == SdlEventType.KeyDown && ev.key.repeat == 0)
+                  {
+                      if (ev.key.scancode == SdlScancode.Escape) running = false;
+                      if (ev.key.scancode is SdlScancode.Space or SdlScancode.Up or SdlScancode.W) jumpBuffer = JUMP_BUFFER;
+                      if (ev.key.scancode == SdlScancode.R) Reset();
+                  }
+              }
+
+              // 2. Held keys
+              var keys = Sdl.Keyboard.GetKeyboardState();
+              var input = new Input(
+                  Left: keys[(int)SdlScancode.Left] || keys[(int)SdlScancode.A],
+                  Right: keys[(int)SdlScancode.Right] || keys[(int)SdlScancode.D],
+                  JumpHeld: keys[(int)SdlScancode.Space] || keys[(int)SdlScancode.Up] || keys[(int)SdlScancode.W]);
+
+              // 3. Fixed-step update
+              var now = clock.Elapsed.TotalSeconds;
+              accumulator += Math.Min(now - previous, 0.25);
+              previous = now;
+              while (accumulator >= STEP)
+              {
+                  Update(input, STEP);
+                  accumulator -= STEP;
+              }
+
+              // 4. Render
+              Draw(renderer);
+              Sdl.Render.RenderPresent(renderer);
+          }
+      }
+
+      void Update(Input input, float dt)
+      {
+          if (won) return;
+          time += dt;
+
+          // Horizontal: accelerate toward input, glide to a stop on the ground
+          var dir = (input.Right ? 1 : 0) - (input.Left ? 1 : 0);
+          if (dir != 0) { vx += dir * RUN_ACCEL * dt; facingLeft = dir < 0; }
+          else if (onGround) vx -= vx * MathF.Min(GROUND_FRICTION * dt, 1f);
+          vx = Math.Clamp(vx, -RUN_MAX, RUN_MAX);
+
+          // Jumping: coyote time + jump buffer + variable height
+          coyote = onGround ? COYOTE_TIME : coyote - dt;
+          jumpBuffer -= dt;
+          if (jumpBuffer > 0 && coyote > 0)
+          {
+              vy = -JUMP_SPEED;
+              jumpBuffer = 0;
+              coyote = 0;
+          }
+          if (!input.JumpHeld && vy < -JUMP_CUT) vy = -JUMP_CUT;   // release early = short hop
+
+          vy = MathF.Min(vy + GRAVITY * dt, MAX_FALL);
+
+          // Move one axis at a time so we know which side we hit
+          MoveX(vx * dt);
+          MoveY(vy * dt);
+
+          if (py > VIEW_H + 32) (px, py, vx, vy) = (spawnX, spawnY, 0, 0);   // fell in the pit
+
+          for (var i = 0; i < taken.Length; i++)
+          {
+              if (taken[i]) continue;
+              var hit = MathF.Abs(px + PW / 2 - coinX[i]) < PW / 2 + 3
+                     && MathF.Abs(py + PH / 2 - coinY[i]) < PH / 2 + 4;
+              if (hit) { taken[i] = true; score++; }
+          }
+          won = score == taken.Length;
+      }
+
+      void MoveX(float dx)
+      {
+          px += dx;
+          if (!Overlaps(px, py)) return;
+          px = dx > 0 ? MathF.Floor((px + PW) / TILE) * TILE - PW : (MathF.Floor(px / TILE) + 1) * TILE;
+          vx = 0;
+      }
+
+      void MoveY(float dy)
+      {
+          py += dy;
+          onGround = false;
+          if (!Overlaps(px, py)) return;
+          if (dy > 0) { py = MathF.Floor((py + PH) / TILE) * TILE - PH; onGround = true; }
+          else py = (MathF.Floor(py / TILE) + 1) * TILE;   // bonk
+          vy = 0;
+      }
+
+      static bool Overlaps(float x, float y)
+      {
+          int x0 = (int)MathF.Floor(x / TILE), x1 = (int)MathF.Floor((x + PW - 0.01f) / TILE);
+          int y0 = (int)MathF.Floor(y / TILE), y1 = (int)MathF.Floor((y + PH - 0.01f) / TILE);
+          for (var ty = y0; ty <= y1; ty++)
+          for (var tx = x0; tx <= x1; tx++)
+              if (Solid(tx, ty)) return true;
+          return false;
+      }
+
+      // Screen sides are walls; below the map is open (the pit).
+      static bool Solid(int tx, int ty) =>
+          tx < 0 || tx >= COLS || (ty >= 0 && ty < ROWS && Level[ty][tx] == '#');
+
+      void Draw(SdlRenderer r)
+      {
+          Fill(r, 0, 0, VIEW_W, VIEW_H, 29, 27, 38);
+
+          for (var ty = 0; ty < ROWS; ty++)
+          for (var tx = 0; tx < COLS; tx++)
+          {
+              if (Level[ty][tx] != '#') continue;
+              Fill(r, tx * TILE, ty * TILE, TILE, TILE, 122, 74, 46);                   // dirt
+              if (!Solid(tx, ty - 1)) Fill(r, tx * TILE, ty * TILE, TILE, 3, 31, 157, 114); // grass
+          }
+
+          var bob = MathF.Round(MathF.Sin(time * 6) * 1.5f);
+          for (var i = 0; i < taken.Length; i++)
+          {
+              if (taken[i]) continue;
+              Fill(r, coinX[i] - 3, coinY[i] - 4 + bob, 6, 8, 255, 197, 102);
+              Fill(r, coinX[i] - 2, coinY[i] - 3 + bob, 1, 4, 255, 244, 194);
+          }
+
+          float x = MathF.Round(px), y = MathF.Round(py);   // whole pixels only
+          Fill(r, x, y, PW, PH, 232, 72, 59);
+          Fill(r, x + 2, y + 3, 6, 5, 255, 210, 166);
+          Fill(r, facingLeft ? x + 3 : x + 6, y + 4, 1, 2, 29, 27, 38);
+
+          Sdl.Render.SetRenderDrawColor(r, 236, 233, 245, 255);
+          Sdl.Render.RenderDebugText(r, 4, 4, $"COINS {score}/{taken.Length}  TIME {time:F1}");
+          if (won) Sdl.Render.RenderDebugText(r, 92, 80, "YOU WIN!  R = again");
+      }
+
+      static unsafe void Fill(SdlRenderer r, float x, float y, float w, float h, byte cr, byte cg, byte cb)
+      {
+          Sdl.Render.SetRenderDrawColor(r, cr, cg, cb, 255);
+          var rect = new SdlFRect { x = x, y = y, w = w, h = h };
+          Sdl.Render.RenderFillRect(r, &rect);
+      }
+  }
+</script>
+
+<p>Run it with <code>dotnet run CoinDash.cs</code>.</p>
+
+<h2>How it works</h2>
+<h3>Collision one axis at a time</h3>
+<p>Move along X, and if the player now overlaps a solid tile, push them back to that tile's edge. Then do the same for Y. Resolving each axis separately tells you <em>which side</em> you hit: landing on a floor (Y, moving down) sets <code>onGround</code>, and hitting a ceiling stops upward speed. At these speeds (at most 400 px/s, so under 7 px per step) the player can never skip through a 16 px tile. That's another benefit of a fixed timestep.</p>
+
+<h3>The three "forgiveness" tricks</h3>
+<div class="table-wrap"><table>
+<tr><th>Trick</th><th>Problem it solves</th><th>Code</th></tr>
+<tr><td><b>Coyote time</b></td><td>The player presses jump a few frames after running off a ledge, and nothing happens.</td><td><code>coyote</code> stays positive for 0.08 s after leaving the ground</td></tr>
+<tr><td><b>Jump buffer</b></td><td>The player presses jump just <em>before</em> landing, and the press is ignored.</td><td><code>jumpBuffer</code> remembers the press for 0.1 s</td></tr>
+<tr><td><b>Variable height</b></td><td>Every jump is the same height, so it feels floaty and hard to control.</td><td>Releasing jump early caps upward speed (<code>JUMP_CUT</code>)</td></tr>
+</table></div>
+<p>Players never notice these tricks; they just say the controls "feel good". Read more in <a href="/design/game-feel">Game feel &amp; juice</a>.</p>
+
+<h2>Upgrades (do them in order)</h2>
+<div class="exercise"><b>LEVEL UP</b>
+<ol>
+  <li><b>Sprites:</b> draw a 16×16 hero with 4 run frames in the <a href="/pixel/editor">pixel editor</a>. Load it with <code>SdlImage.LoadTexture</code>, use <code>SdlScaleMode.Nearest</code>, and pick the frame from <code>time</code>. To face left, call <code>Sdl.Render.RenderTextureRotated(r, tex, &amp;src, &amp;dst, 0, null, facingLeft ? SdlFlipMode.Horizontal : SdlFlipMode.None)</code>.</li>
+  <li><b>Sound:</b> use the generated coin and jump sounds from the <a href="/brutal/audio">audio lesson</a>, or <code>Sdl.Mixer</code> as in <code>DemoSdl.cs</code>.</li>
+  <li><b>Juice:</b> squash and stretch on landing, a few dust particles, and a 2-frame freeze when grabbing a coin.</li>
+  <li><b>Levels:</b> move <code>Level</code> into text files and load the next one when <code>won</code>.</li>
+  <li><b>No per-frame garbage:</b> the HUD's <code>$"..."</code> allocates a new string every frame. Cache the string and rebuild it only when <code>score</code> changes, or format into a <code>Span&lt;char&gt;</code>.</li>
+  <li><b>Credits:</b> add a title screen showing the BRUTAL logo and a credits screen with the BRUTAL copyright notice. See <a href="/brutal/shipping">Shipping</a>.</li>
+</ol>
+</div>
+</article>
+
+<script>
+/* Browser port of CoinDash.cs for the in-page preview (same constants and logic). */
+(function () {
+  var c = document.getElementById("preview"); if (!c) return;
+  var g = c.getContext("2d");
+  var TILE = 16, COLS = 20, ROWS = 11, VW = 320, VH = 176, STEP = 1 / 60;
+  var RUN_ACCEL = 1400, RUN_MAX = 110, FRICTION = 12, GRAVITY = 950, JUMP = 330, CUT = 120, MAX_FALL = 400, COYOTE = .08, BUFFER = .1, PW = 10, PH = 14;
+  var L = ["....................", "....................", "......c.......c.....", ".....###.....###....", "....................", "..c.......c.......c.", ".###.....###.....###", "....................", "........c...........", ".p.....###....c.....", "#########..#########"];
+  var s = {}, keys = {}, buffer = 0;
+  function reset() {
+    s = { coins: [], score: 0, time: 0, won: false, vx: 0, vy: 0, onGround: false, coyote: 0, left: false };
+    for (var ty = 0; ty < ROWS; ty++) for (var tx = 0; tx < COLS; tx++) {
+      if (L[ty][tx] === "p") { s.sx = tx * TILE + 3; s.sy = ty * TILE + (TILE - PH); }
+      if (L[ty][tx] === "c") s.coins.push({ x: tx * TILE + 8, y: ty * TILE + 8, t: false });
+    }
+    s.x = s.sx; s.y = s.sy;
+  }
+  function solid(tx, ty) { return tx < 0 || tx >= COLS || (ty >= 0 && ty < ROWS && L[ty][tx] === "#"); }
+  function overlaps(x, y) {
+    var x0 = Math.floor(x / TILE), x1 = Math.floor((x + PW - .01) / TILE), y0 = Math.floor(y / TILE), y1 = Math.floor((y + PH - .01) / TILE);
+    for (var ty = y0; ty <= y1; ty++) for (var tx = x0; tx <= x1; tx++) if (solid(tx, ty)) return true;
+    return false;
+  }
+  function update(dt) {
+    if (s.won) return;
+    s.time += dt;
+    var dir = (keys.right ? 1 : 0) - (keys.left ? 1 : 0);
+    if (dir) { s.vx += dir * RUN_ACCEL * dt; s.left = dir < 0; } else if (s.onGround) s.vx -= s.vx * Math.min(FRICTION * dt, 1);
+    s.vx = Math.max(-RUN_MAX, Math.min(RUN_MAX, s.vx));
+    s.coyote = s.onGround ? COYOTE : s.coyote - dt;
+    buffer -= dt;
+    if (buffer > 0 && s.coyote > 0) { s.vy = -JUMP; buffer = 0; s.coyote = 0; }
+    if (!keys.jump && s.vy < -CUT) s.vy = -CUT;
+    s.vy = Math.min(s.vy + GRAVITY * dt, MAX_FALL);
+    var dx = s.vx * dt; s.x += dx;
+    if (overlaps(s.x, s.y)) { s.x = dx > 0 ? Math.floor((s.x + PW) / TILE) * TILE - PW : (Math.floor(s.x / TILE) + 1) * TILE; s.vx = 0; }
+    var dy = s.vy * dt; s.y += dy; s.onGround = false;
+    if (overlaps(s.x, s.y)) { if (dy > 0) { s.y = Math.floor((s.y + PH) / TILE) * TILE - PH; s.onGround = true; } else s.y = (Math.floor(s.y / TILE) + 1) * TILE; s.vy = 0; }
+    if (s.y > VH + 32) { s.x = s.sx; s.y = s.sy; s.vx = s.vy = 0; }
+    s.coins.forEach(function (k) { if (!k.t && Math.abs(s.x + PW / 2 - k.x) < PW / 2 + 3 && Math.abs(s.y + PH / 2 - k.y) < PH / 2 + 4) { k.t = true; s.score++; } });
+    s.won = s.score === s.coins.length;
+  }
+  function fill(x, y, w, h, col) { g.fillStyle = col; g.fillRect(x, y, w, h); }
+  function draw() {
+    fill(0, 0, VW, VH, "rgb(29,27,38)");
+    for (var ty = 0; ty < ROWS; ty++) for (var tx = 0; tx < COLS; tx++) if (L[ty][tx] === "#") {
+      fill(tx * TILE, ty * TILE, TILE, TILE, "rgb(122,74,46)"); if (!solid(tx, ty - 1)) fill(tx * TILE, ty * TILE, TILE, 3, "rgb(31,157,114)");
+    }
+    var bob = Math.round(Math.sin(s.time * 6) * 1.5);
+    s.coins.forEach(function (k) { if (!k.t) { fill(k.x - 3, k.y - 4 + bob, 6, 8, "rgb(255,197,102)"); fill(k.x - 2, k.y - 3 + bob, 1, 4, "rgb(255,244,194)"); } });
+    var x = Math.round(s.x), y = Math.round(s.y);
+    fill(x, y, PW, PH, "rgb(232,72,59)"); fill(x + 2, y + 3, 6, 5, "rgb(255,210,166)"); fill(s.left ? x + 3 : x + 6, y + 4, 1, 2, "rgb(29,27,38)");
+    g.fillStyle = "rgb(236,233,245)"; g.font = "8px monospace";
+    g.fillText("COINS " + s.score + "/" + s.coins.length + "  TIME " + s.time.toFixed(1), 4, 11);
+    if (s.won) g.fillText("YOU WIN!  R = again", 92, 87);
+  }
+  var map = { ArrowLeft: "left", KeyA: "left", ArrowRight: "right", KeyD: "right", Space: "jump", ArrowUp: "jump", KeyW: "jump" };
+  c.tabIndex = 0;
+  c.addEventListener("keydown", function (e) {
+    var k = map[e.code]; if (k || e.code === "KeyR") e.preventDefault();
+    if (k === "jump" && !e.repeat) buffer = BUFFER;
+    if (k) keys[k] = true; if (e.code === "KeyR") reset();
+  });
+  c.addEventListener("keyup", function (e) { var k = map[e.code]; if (k) keys[k] = false; });
+  c.addEventListener("blur", function () { keys = {}; });
+  c.addEventListener("click", function () { c.focus(); });
+  reset();
+  var acc = 0, last = performance.now();
+  function frame(now) {
+    acc += Math.min((now - last) / 1000, .25); last = now;
+    while (acc >= STEP) { update(STEP); acc -= STEP; }
+    draw(); requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

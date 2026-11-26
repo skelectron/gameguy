@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>What BRUTAL is (and isn't) · GameGuy</title>
+<meta name="description" content="An introduction to BRUTAL, the free open-source C# game framework by Ahwoo/RocketWerkz, and how it differs from a game engine.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="/assets/js/lessons.js" defer></script>
+<script src="/assets/js/main.js" defer></script>
+</head>
+<body data-track="brutal" data-slug="what-is-brutal">
+<article class="lesson">
+<h1>What BRUTAL is (and isn't)</h1>
+
+<div class="objectives"><b>You will learn</b>
+<ul>
+  <li>What BRUTAL is and who makes it</li>
+  <li>The difference between a <em>framework</em> and an <em>engine</em></li>
+  <li>Which real games use it, and why studios choose it</li>
+</ul></div>
+
+<p><b>BRUTAL</b> is a free, open-source <b>C# framework for making games, or for making your own game engine</b>. It comes from Ahwoo Limited and RocketWerkz, the studios led by Dean Hall (creator of DayZ), and its source was released publicly in October 2026.</p>
+
+<p>The README says it plainly: there is <em>"no editor, no scene graph and no renderer, and we're not adding them."</em> That isn't a missing feature. It is the whole point of BRUTAL.</p>
+
+<h2>Framework, not engine</h2>
+<p>An <b>engine</b> such as Unity or Godot owns your program. It runs the main loop, decides how objects are stored, renders the scene, and calls <em>your</em> scripts at the moments it chooses.</p>
+<p>A <b>framework</b> such as BRUTAL works the other way round. <em>You</em> write <code>Main</code>, you own the loop, and you call into well-made libraries for the hard parts: opening a window, talking to the GPU, physics, audio and so on.</p>
+
+<div class="diagram">
+<svg viewBox="0 0 640 220" font-family="Inter, sans-serif" font-size="13">
+  <rect x="10" y="10" width="300" height="200" fill="none" stroke="currentColor" stroke-width="3"/>
+  <text x="160" y="34" text-anchor="middle" font-weight="700" fill="currentColor">Engine (Unity / Godot)</text>
+  <rect x="30" y="50" width="260" height="140" fill="#2f7de1" opacity=".18" stroke="#2f7de1" stroke-width="2"/>
+  <text x="160" y="72" text-anchor="middle" fill="currentColor">Editor · Scene graph · Renderer · Loop</text>
+  <rect x="90" y="110" width="140" height="50" fill="#e8483b" opacity=".85"/>
+  <text x="160" y="140" text-anchor="middle" fill="#fff" font-weight="700">your scripts</text>
+  <rect x="330" y="10" width="300" height="200" fill="none" stroke="currentColor" stroke-width="3"/>
+  <text x="480" y="34" text-anchor="middle" font-weight="700" fill="currentColor">Framework (BRUTAL)</text>
+  <rect x="350" y="50" width="260" height="60" fill="#e8483b" opacity=".85"/>
+  <text x="480" y="85" text-anchor="middle" fill="#fff" font-weight="700">your game / your engine (owns the loop)</text>
+  <g fill="#2f7de1" opacity=".25" stroke="#2f7de1" stroke-width="2">
+    <rect x="350" y="125" width="60" height="30"/><rect x="417" y="125" width="60" height="30"/><rect x="484" y="125" width="60" height="30"/><rect x="551" y="125" width="59" height="30"/>
+    <rect x="350" y="162" width="60" height="30"/><rect x="417" y="162" width="60" height="30"/><rect x="484" y="162" width="60" height="30"/><rect x="551" y="162" width="59" height="30"/>
+  </g>
+  <g fill="currentColor" font-size="11" text-anchor="middle">
+    <text x="380" y="144">Glfw</text><text x="447" y="144">Vulkan</text><text x="514" y="144">OpenGl</text><text x="580" y="144">ImGui</text>
+    <text x="380" y="181">Box2D</text><text x="447" y="181">Jolt</text><text x="514" y="181">OpenAl</text><text x="580" y="181">RakNet</text>
+  </g>
+</svg>
+</div>
+
+<h2>What's inside</h2>
+<p>BRUTAL is a set of small libraries, and each top-level folder in the repo is shipped as its own NuGet package (<code>Ahwoo.Brutal.*</code>). They fall into a few groups:</p>
+<ul>
+  <li><b>Foundations</b>: <code>Core</code>, <code>Memory</code>, <code>Collections</code>, <code>Strings</code>, <code>Numerics</code>, <code>Maths</code>, <code>Concurrency</code>, <code>Logging</code> and <code>Localization</code>. These are allocation-aware building blocks.</li>
+  <li><b>Interop</b>: a custom interop layer that gives C# direct, fast access to native C/C++ APIs.</li>
+  <li><b>Windowing &amp; input</b>: GLFW and SDL3, plus SDL's image, mixer and TTF add-ons.</li>
+  <li><b>Graphics</b>: Vulkan (with VMA), OpenGL, ShaderC/Slang shader compilers, textures (KTX, STB, GLI), glTF, MeshOptimizer and FreeType.</li>
+  <li><b>UI &amp; tools</b>: Dear ImGui (docking branch), ImPlot, RenderDoc integration and a runtime monitor.</li>
+  <li><b>Physics, audio &amp; networking</b>: Box2D, Jolt, OpenAL, FMOD and RakNet.</li>
+</ul>
+
+<h2>Who uses it?</h2>
+<p>BRUTAL isn't a toy. It already runs real, shipping projects:</p>
+<ul>
+  <li><b>Kitten Space Agency</b> (RocketWerkz) is built directly on BRUTAL.</li>
+  <li><b>RimWorld</b>: Ludeon Studios built their in-house <em>Waylith</em> engine on top of it.</li>
+  <li>Torpedia, Art of the Rail, Gruntz and Afterskies also use it.</li>
+</ul>
+
+<h2>Why learn with BRUTAL?</h2>
+<ol>
+  <li><b>No hidden magic.</b> You write the game loop, so you understand it.</li>
+  <li><b>Modern C#.</b> It uses .NET 10, <code>Span&lt;T&gt;</code>, unmanaged memory and UTF-8 strings, which are real performance skills.</li>
+  <li><b>No lock-in.</b> You can swap or skip any package. The maintainers even say math libraries "should be picked by the developer, not the framework."</li>
+  <li><b>Engine-builder skills.</b> Everything you build here carries straight into the <a href="/enginedev/">Engine Development</a> track.</li>
+</ol>
+
+<div class="callout warn"><span class="t">HONEST TRADE-OFFS</span>
+<p>BRUTAL has no visual editor, no level editor and no asset browser. Building from source is still "coming", so for now you use the NuGet packages. It suits programmers who like control. If you want to drag sprites into a scene, have a look at <a href="/engines/godot">Godot</a> or <a href="/engines/gamemaker">GameMaker</a> too.</p>
+</div>
+
+<h2>The license in one paragraph</h2>
+<p>BRUTAL uses the <b>BRUTAL License v1.0</b>, which is MIT-based with an added attribution clause. You can use it for free in commercial games with <b>no royalties</b>. If you ship a game (a "Product"), you must show the copyright notice in your credits, show the BRUTAL logo before gameplay, and include <code>NOTICE.txt</code> with the game. The logo requirement is waived for non-profit projects. All the details are in <a href="/brutal/shipping">the Shipping lesson</a>.</p>
+
+<div class="exercise"><b>CHECKPOINT</b>
+<p>Explain in your own words why "no renderer" is a <em>feature</em> for a studio like Ludeon, who had a 10-year-old game to port off Unity.</p>
+</div>
+</article>
+</body>
+</html>

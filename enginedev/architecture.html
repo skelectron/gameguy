@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Engine architecture in layers · GameGuy</title>
+<meta name="description" content="The layered architecture of a game engine, from platform and core up through systems, game framework and tools, mapped onto BRUTAL packages.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="/assets/js/lessons.js" defer></script>
+<script src="/assets/js/main.js" defer></script>
+</head>
+<body data-track="enginedev" data-slug="architecture">
+<article class="lesson">
+<h1>Engine architecture in layers</h1>
+
+<p>Every engine, from a weekend project to Unreal, has the same basic shape: <b>layers</b>, where each layer only depends on the layers below it.</p>
+
+<div class="diagram">
+<svg viewBox="0 0 680 330" font-family="Inter, sans-serif" font-size="13">
+  <g stroke="currentColor" stroke-width="2.5">
+    <rect x="10" y="10" width="660" height="46" fill="#c2407e" fill-opacity=".25"/>
+    <rect x="10" y="64" width="660" height="46" fill="#e0911a" fill-opacity=".25"/>
+    <rect x="10" y="118" width="660" height="60" fill="#1f9d72" fill-opacity=".2"/>
+    <rect x="10" y="186" width="660" height="60" fill="#2f7de1" fill-opacity=".2"/>
+    <rect x="10" y="254" width="660" height="66" fill="#e8483b" fill-opacity=".2"/>
+  </g>
+  <g fill="currentColor">
+    <text x="22" y="38" font-weight="700">5 · Game</text><text x="200" y="38">your rules, levels, content: Coin Dash</text>
+    <text x="22" y="92" font-weight="700">4 · Tools</text><text x="200" y="92">editor, debug UI, profiler, asset importers</text>
+    <text x="22" y="146" font-weight="700">3 · Game framework</text><text x="200" y="146">entities/ECS, scenes, cameras, animation,</text><text x="200" y="166">input mapping, save system</text>
+    <text x="22" y="214" font-weight="700">2 · Engine systems</text><text x="200" y="214">renderer, physics, audio, resources,</text><text x="200" y="234">job system, networking</text>
+    <text x="22" y="282" font-weight="700">1 · Platform + core</text><text x="200" y="282">window, input devices, time, files, memory,</text><text x="200" y="302">math, strings, logging, containers</text>
+  </g>
+  <g fill="#e8483b" font-weight="700" font-size="12">
+    <text x="530" y="92">ImGui · RenderDoc</text>
+    <text x="530" y="222">OpenGl · Vulkan</text><text x="530" y="238">Box2D · OpenAl</text>
+    <text x="530" y="282">Glfw · Sdl · Core</text><text x="530" y="298">Memory · Numerics</text>
+  </g>
+</svg>
+</div>
+<p>BRUTAL gives you layer 1 in full and the <em>building blocks</em> of layer 2: GPU APIs, physics engines and audio APIs. A <em>renderer</em> (as opposed to a graphics API), plus everything in layers 3 and 4, is what an engine developer writes. Red labels show which BRUTAL packages fill each layer.</p>
+
+<h2>Rules that keep engines healthy</h2>
+<ol>
+  <li><b>Dependencies point down.</b> The renderer never references <code>Player</code>. If a lower layer needs to notify a higher one, use events or interfaces (<a href="/csharp/delegates-events">delegates &amp; events</a>).</li>
+  <li><b>Wrap the platform.</b> Game code calls <code>Input.IsDown(Action.Jump)</code>, not <code>GetKey(GlfwKey.Space)</code>. Then switching GLFW for SDL touches one file.</li>
+  <li><b>Data over objects.</b> Systems process arrays of plain data. This is easier to optimise, serialise and multithread.</li>
+  <li><b>Explicit lifetimes.</b> Every system has <code>Init</code>, <code>Update</code>/<code>Render</code> and <code>Shutdown</code>, and shuts down in reverse order of start-up (sound familiar? See <a href="/csharp/disposal">disposal</a>).</li>
+  <li><b>No hidden globals.</b> Pass an <code>Engine</code> or context object, or use a small set of well-known services.</li>
+</ol>
+
+<h2>A minimal engine skeleton</h2>
+<script type="text/x-code">
+  interface ISystem : IDisposable
+  {
+      void Update(float dt) { }        // default interface methods: implement what you need
+      void Render(float alpha) { }
+  }
+
+  sealed class Engine : IDisposable
+  {
+      private readonly List<ISystem> _systems = [];
+      public T Add<T>(T system) where T : ISystem { _systems.Add(system); return system; }
+
+      public void Update(float dt) { foreach (var s in _systems) s.Update(dt); }
+      public void Render(float a)  { foreach (var s in _systems) s.Render(a); }
+
+      public void Dispose()
+      {
+          for (var i = _systems.Count - 1; i >= 0; i--)   // reverse order!
+              _systems[i].Dispose();
+      }
+  }
+</script>
+
+<div class="exercise"><b>EXERCISE</b>
+<p>Sort the following into layers 1–5: <em>sprite batcher, texture loader, A* pathfinding, dialogue tree editor, gamepad rumble, save-file encryption, boss AI, camera shake, frame-time graph, hot reload.</em> Defend your two least obvious choices.</p>
+</div>
+</article>
+</body>
+</html>

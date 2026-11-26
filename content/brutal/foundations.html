@@ -1,0 +1,150 @@
+---
+title: "Foundations: Core, Memory, Collections, Strings"
+description: BRUTAL's allocation-aware building blocks, including Ptr<T>, Mem, NativeList<T>, String8, float3 and the job scheduler.
+---
+<article class="lesson">
+<h1>Foundations: Core, Memory, Collections, Strings</h1>
+
+<div class="objectives"><b>You will learn</b>
+<ul>
+  <li>Why game frameworks care so much about allocations</li>
+  <li>How to use <code>ByteSize</code>, <code>Ptr&lt;T&gt;</code>, <code>Mem</code> and <code>PtrOwner&lt;T&gt;</code></li>
+  <li>How to use <code>NativeList&lt;T&gt;</code>, <code>String8</code> and the BRUTAL vector types</li>
+  <li>How to run work in parallel with <code>JobScheduler</code></li>
+</ul></div>
+
+<p>A game at 60 FPS has <b>16.6 ms</b> per frame. If the .NET garbage collector pauses for 5 ms in the middle of a boss fight, players notice. BRUTAL's foundation packages let you do common work, such as building lists, formatting strings and passing buffers to the GPU, <em>without creating garbage</em>. If any of this C# is new to you, read <a href="/csharp/memory">The GC &amp; zero-allocation gameplay</a> first.</p>
+
+<h2>Brutal.Core: sizes and pointers</h2>
+<script type="text/x-code" data-file="HelloCore.cs">
+  #:property AllowUnsafeBlocks=true
+  #:package Ahwoo.Brutal.Core@2026.10.4
+
+  using Brutal;
+  using Brutal.Pointers;
+
+  Console.WriteLine($"Running on {Platform.CurrentFamily}");
+
+  var stride = ByteSize.Of<float>();                 // 4 bytes
+  var total  = stride * new ElementCount(1024);      // ByteSize * ElementCount = ByteSize
+  Console.WriteLine($"1024 floats = {total}");
+
+  unsafe
+  {
+      var raw = stackalloc int[4] { 10, 20, 30, 40 };
+      Ptr<int> p = raw;
+      Console.WriteLine($"p.Value = {p.Value}, p[2] = {p[2]}, p.Offset(1).Value = {p.Offset(1).Value}");
+  }
+</script>
+<p><code>ByteSize</code> and <code>ElementCount</code> are small <b>strongly-typed wrappers</b>. They stop you from mixing up "number of bytes" and "number of items", which is the classic bug when filling GPU buffers. <code>Ptr&lt;T&gt;</code> is a typed pointer with indexing and offsets.</p>
+
+<h2>Brutal.Memory: unmanaged memory</h2>
+<script type="text/x-code" data-file="HelloMemory.cs (core)">
+  // 8 ints the GC never sees. You own this memory, so you free it.
+  var numbers = Mem.AllocZeroed<int>(new ElementCount(8));
+  for (var i = 0; i < numbers.Length; i++)
+      numbers[i] = i * i;
+  Mem.Free(numbers);
+
+  // PtrOwner frees its allocation when disposed.
+  using var pi = new PtrOwner<double>(Math.PI);
+  Console.WriteLine(pi.Value);
+</script>
+<p><code>Mem.AllocZeroed</code> gives you a <code>Span&lt;T&gt;</code> over native memory. That's ideal for big chunks of data such as tile maps, particle arrays or vertex buffers, which you don't want the GC to scan.</p>
+<div class="callout warn"><span class="t">WITH GREAT POWER</span>
+<p>Unmanaged memory has no safety net. If you forget <code>Mem.Free</code> you leak memory, and if you use it after freeing you get a crash or corrupted data. Prefer owners (<code>PtrOwner</code>, <code>NativeList</code>) declared with <code>using</code>.</p></div>
+
+<h2>Brutal.Collections: NativeList&lt;T&gt;</h2>
+<script type="text/x-code" data-file="HelloCollections.cs (core)">
+  using var list = new NativeList<int>();   // freed at end of scope
+
+  list.Add(1);
+  list.AddRange([2, 3, 4, 5]);
+  list.Insert(0, 0);
+  list.RemoveAt(3);
+
+  Console.WriteLine($"Count = {(int)list.Count}, Capacity = {(int)list.Capacity}");
+
+  foreach (var value in list)
+      Console.WriteLine(value);
+
+  var span = list.AsSpan();
+  span.Reverse();                           // edit in place, no copies
+</script>
+<p>It works like <code>List&lt;T&gt;</code> but is backed by unmanaged memory, and <code>AsSpan()</code> gives you direct access to the elements. A typical use is a list of entities or sprites that you rebuild every frame without making garbage.</p>
+
+<h2>Brutal.Strings: UTF-8 text</h2>
+<script type="text/x-code" data-file="HelloStrings.cs (core)">
+  using Brutal.Strings;
+
+  var greeting = new String8("Hello, café!");
+  Console.WriteLine($"UTF-8 bytes: {greeting.Length}, code points: {Unicode.GetRuneCount(greeting.AsSpan())}");
+  Console.WriteLine(greeting.StartsWith("Hello"u8));
+
+  var builder = new StringBuilder<byte>();
+  builder.Append($"Pi is roughly {Math.PI:F3}");
+  builder.AppendLine();
+  builder.Append("Built as UTF-8"u8);
+</script>
+<p>Native libraries such as ImGui, SDL and FreeType all use UTF-8, but C# <code>string</code> is UTF-16. If you keep text in UTF-8 (<code>"..."u8</code> literals, <code>String8</code>), you avoid converting it on every call. That's why ImGui calls in BRUTAL look like <code>ImGui.Text("Hello"u8)</code>.</p>
+
+<h2>Brutal.Numerics: vectors &amp; matrices</h2>
+<script type="text/x-code" data-file="HelloNumerics.cs (core)">
+  using Brutal.Numerics;
+
+  var a = new float3(1, 0, 0);
+  var b = new float3(0, 1, 0);
+
+  Console.WriteLine(a + b);                 // <1, 1, 0>
+  Console.WriteLine(float3.Dot(a, b));      // 0
+  Console.WriteLine(float3.Cross(a, b));    // <0, 0, 1>
+  Console.WriteLine((a + b).Length());      // 1.414...
+
+  // Rotate 90° around Z, then move 10 units along X.
+  var transform = float4x4.CreateRotationZ(MathF.PI / 2) * float4x4.CreateTranslation(10, 0, 0);
+  Console.WriteLine(float3.Transform(a, transform));
+
+  var size = new int2(640, 480);
+</script>
+<p>The names (<code>float2</code>, <code>float3</code>, <code>int2</code>, <code>float4x4</code>) deliberately match shader languages, so CPU and GPU code read alike. <code>Brutal.Maths</code> adds <code>Random</code> extensions such as <code>NextSingle(min, max)</code>, <code>NextSinglePointInCircle</code> and <code>NextSingleUnit3()</code>, which are great for particles.</p>
+
+<h2>Brutal.Concurrency: jobs</h2>
+<script type="text/x-code" data-file="HelloConcurrency.cs">
+  using Brutal.Concurrency.Jobs;
+
+  var scheduler = new JobScheduler(3, "HelloScheduler");   // 3 worker threads
+
+  for (var i = 1; i <= 6; i++)
+      scheduler.Queue(new HelloJob(i), 10);                // 10 = estimated cost
+
+  scheduler.ExecuteJobs();
+  scheduler.Wait();
+
+  class HelloJob(int id) : IJob
+  {
+      public void Run() => Console.WriteLine($"Job {id} on thread {Environment.CurrentManagedThreadId}");
+  }
+</script>
+<p>The estimated cost helps the scheduler balance work across threads. Good candidates for jobs are pathfinding for many units, chunk generation and particle updates.</p>
+
+<h2>Brutal.Logging</h2>
+<script type="text/x-code">
+  using Brutal.Logging;
+  using Microsoft.Extensions.Logging;
+  using static Brutal.Logging.DefaultCategory;
+
+  LogSystem.Initialize(builder =>
+  {
+      builder.SetMinimumLevel(LogLevel.Trace);
+      builder.AddConsole();
+  });
+
+  Log.Info("Hello from Brutal.Logging");
+  var network = LogCategory.Make("Network");
+  network.Error("Connection refused");
+</script>
+
+<div class="exercise"><b>EXERCISE: A PARTICLE BUFFER</b>
+<p>Make a <code>NativeList&lt;float2&gt;</code> of 10,000 particle positions using <code>random.NextSinglePointInCircle(50f)</code>. Then, 60 times in a loop, move every particle 1 unit to the right through <code>AsSpan()</code>. Measure the time with <code>Stopwatch</code>, and use <code>GC.GetAllocatedBytesForCurrentThread()</code> before and after the loop to check that the loop allocates <b>0 bytes</b>.</p>
+</div>
+</article>

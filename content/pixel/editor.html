@@ -1,0 +1,258 @@
+---
+title: Pixel editor (tool)
+description: A free in-browser pixel art editor with palette, pencil, fill, eyedropper, mirror drawing, frames, onion skinning, animation preview and PNG/sprite-sheet export.
+---
+<article class="lesson">
+<h1>Pixel editor</h1>
+<p>Draw sprites for your BRUTAL games directly in the browser. Exported PNGs load with <code>SdlImage.LoadTexture</code> (remember to set <code>SdlScaleMode.Nearest</code>). Your work is saved in this browser automatically.</p>
+
+<style>
+  .pe { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 760px) { .pe { grid-template-columns: minmax(0, 1fr) 200px; } }
+  .pe-stage { background: var(--panel); border: 3px solid var(--border); padding: 12px; display: flex; justify-content: center; align-items: center; }
+  .pe-stage canvas { width: 100%; max-width: 512px; aspect-ratio: 1; image-rendering: pixelated; touch-action: none; cursor: crosshair; background: repeating-conic-gradient(#d6d0c2 0% 25%, #f4f1ea 0% 50%) 50% / 16px 16px; }
+  .pe-side { display: flex; flex-direction: column; gap: 12px; }
+  .pe-box { background: var(--panel); border: 3px solid var(--border); padding: 10px; }
+  .pe-box h4 { margin: 0 0 8px; font-family: var(--font-pixel); font-size: 9px; }
+  .pe-tools { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .pe-tools button, .pe-row button, .pe-row select { font: 600 12px var(--font-body); padding: 6px 4px; border: 2px solid var(--border); background: var(--bg-2); color: var(--text); cursor: pointer; }
+  .pe-tools button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+  .pe-pal { display: grid; grid-template-columns: repeat(8, 1fr); border: 2px solid var(--border); }
+  .pe-pal button { aspect-ratio: 1; border: 0; padding: 0; cursor: pointer; }
+  .pe-pal button[aria-pressed="true"] { outline: 3px solid var(--accent); outline-offset: -3px; box-shadow: inset 0 0 0 5px #fff; }
+  .pe-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; }
+  .pe-frames { display: flex; gap: 6px; overflow-x: auto; padding: 4px 0; }
+  .pe-frames canvas { width: 48px; height: 48px; image-rendering: pixelated; border: 2px solid var(--soft-border); cursor: pointer; background: #fff; flex: none; }
+  .pe-frames canvas.sel { border-color: var(--accent); }
+  .pe-preview { width: 96px; height: 96px; image-rendering: pixelated; border: 2px solid var(--border); background: #fff; }
+</style>
+
+<div class="pe" id="pe">
+  <div>
+    <div class="pe-stage"><canvas id="pe-canvas" width="512" height="512" aria-label="Drawing canvas"></canvas></div>
+    <div class="pe-box" style="margin-top:12px">
+      <h4>FRAMES</h4>
+      <div class="pe-frames" id="pe-frames"></div>
+      <div class="pe-row">
+        <button id="pe-add" type="button">+ New</button>
+        <button id="pe-dup" type="button">Duplicate</button>
+        <button id="pe-del" type="button">Delete</button>
+        <label><input type="checkbox" id="pe-onion" checked> Onion skin</label>
+      </div>
+    </div>
+  </div>
+  <div class="pe-side">
+    <div class="pe-box">
+      <h4>TOOLS</h4>
+      <div class="pe-tools" id="pe-tools">
+        <button data-tool="pencil" aria-pressed="true" title="Pencil (B)">✏ Pen</button>
+        <button data-tool="eraser" title="Eraser (E)">⌫ Erase</button>
+        <button data-tool="fill" title="Fill (G)">▨ Fill</button>
+        <button data-tool="pick" title="Eyedropper (I)">⊙ Pick</button>
+        <button data-tool="mirror" title="Mirror X (M)" aria-pressed="false">⇋ Mirror</button>
+        <button id="pe-undo" title="Undo (Ctrl+Z)">↶ Undo</button>
+      </div>
+    </div>
+    <div class="pe-box">
+      <h4>PALETTE</h4>
+      <div class="pe-pal" id="pe-pal"></div>
+      <div class="pe-row" style="margin-top:8px"><label>Custom <input type="color" id="pe-color" value="#e8483b"></label></div>
+    </div>
+    <div class="pe-box">
+      <h4>CANVAS</h4>
+      <div class="pe-row">
+        <select id="pe-size" aria-label="Canvas size"><option>8</option><option selected>16</option><option>24</option><option>32</option><option>64</option></select>
+        <button id="pe-clear" type="button">Clear</button>
+        <label><input type="checkbox" id="pe-grid" checked> Grid</label>
+      </div>
+    </div>
+    <div class="pe-box">
+      <h4>PREVIEW</h4>
+      <canvas class="pe-preview" id="pe-preview" width="96" height="96"></canvas>
+      <div class="pe-row"><label>FPS <input type="range" id="pe-fps" min="1" max="24" value="8" style="width:90px"> <span id="pe-fpsv">8</span></label></div>
+    </div>
+    <div class="pe-box">
+      <h4>EXPORT</h4>
+      <div class="pe-row">
+        <select id="pe-scale" aria-label="Export scale"><option value="1">1×</option><option value="2">2×</option><option value="4">4×</option><option value="8">8×</option></select>
+        <button id="pe-png" type="button">Frame PNG</button>
+        <button id="pe-sheet" type="button">Sheet PNG</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>Shortcuts</h2>
+<p><kbd>B</kbd> pencil · <kbd>E</kbd> eraser · <kbd>G</kbd> fill · <kbd>I</kbd> eyedropper · <kbd>M</kbd> mirror · <kbd>Ctrl</kbd>+<kbd>Z</kbd> undo · <kbd>←</kbd>/<kbd>→</kbd> previous/next frame · right-click erases.</p>
+
+<h2>Using your sprites in BRUTAL</h2>
+<script type="text/x-code">
+  using var sheet = SdlImage.LoadTexture(renderer, "assets/hero_sheet.png");   // exported at 1x
+  Sdl.Render.SetTextureScaleMode(sheet, SdlScaleMode.Nearest);
+  int frame = (int)(time * 8) % FRAME_COUNT;
+  var src = new SdlFRect { x = frame * 16, y = 0, w = 16, h = 16 };
+</script>
+<p>Export at <b>1×</b> for games, because the engine does the scaling. Use larger scales for sharing on social media.</p>
+</article>
+
+<script>
+(function () {
+  var PAL = ["#1d1b26","#3a3650","#5d5a6b","#a6a2b8","#ece9f5","#7a4a2e","#c2783f","#ffd2a6","#e8483b","#c2407e","#ffc566","#fff4c2","#1f9d72","#5fd39c","#2f7de1","#7cc7ff"];
+  var cv = document.getElementById("pe-canvas"), ctx = cv.getContext("2d");
+  var state = { size: 16, frames: [], cur: 0, color: "#e8483b", tool: "pencil", mirror: false };
+  var undo = [];
+  function blank(n) { return new Array(n * n).fill(null); }
+  try { var saved = JSON.parse(localStorage.getItem("gg-pixel") || "null"); if (saved && saved.frames && saved.frames.length) { state.size = saved.size; state.frames = saved.frames; } } catch (e) {}
+  if (!state.frames.length) state.frames = [blank(state.size)];
+  document.getElementById("pe-size").value = String(state.size);
+  function persist() { try { localStorage.setItem("gg-pixel", JSON.stringify({ size: state.size, frames: state.frames })); } catch (e) {} }
+  function pushUndo() { undo.push({ cur: state.cur, frames: state.frames.map(function (f) { return f.slice(); }) }); if (undo.length > 60) undo.shift(); }
+
+  // palette
+  var palEl = document.getElementById("pe-pal");
+  PAL.forEach(function (c) {
+    var b = document.createElement("button"); b.type = "button"; b.style.background = c; b.title = c; b.dataset.c = c;
+    b.addEventListener("click", function () { setColor(c); }); palEl.appendChild(b);
+  });
+  var colorIn = document.getElementById("pe-color");
+  colorIn.addEventListener("input", function () { setColor(colorIn.value); });
+  function setColor(c) {
+    state.color = c; colorIn.value = c;
+    palEl.querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", b.dataset.c === c ? "true" : "false"); });
+    if (state.tool === "eraser" || state.tool === "pick") setTool("pencil");
+  }
+
+  // tools
+  var toolsEl = document.getElementById("pe-tools");
+  function setTool(t) {
+    if (t === "mirror") { state.mirror = !state.mirror; toolsEl.querySelector('[data-tool="mirror"]').setAttribute("aria-pressed", state.mirror); return; }
+    state.tool = t;
+    toolsEl.querySelectorAll("[data-tool]").forEach(function (b) { if (b.dataset.tool !== "mirror") b.setAttribute("aria-pressed", b.dataset.tool === t ? "true" : "false"); });
+  }
+  toolsEl.querySelectorAll("[data-tool]").forEach(function (b) { b.addEventListener("click", function () { setTool(b.dataset.tool); }); });
+  document.getElementById("pe-undo").addEventListener("click", doUndo);
+  function doUndo() { var u = undo.pop(); if (!u) return; state.frames = u.frames; state.cur = Math.min(u.cur, u.frames.length - 1); persist(); renderAll(); }
+
+  // drawing
+  var drawing = false, erasing = false, lastCell = -1;
+  function cellAt(e) {
+    var r = cv.getBoundingClientRect(), n = state.size;
+    var x = Math.floor((e.clientX - r.left) / r.width * n), y = Math.floor((e.clientY - r.top) / r.height * n);
+    return x >= 0 && y >= 0 && x < n && y < n ? { x: x, y: y } : null;
+  }
+  function setPx(f, x, y, v) { var n = state.size; f[y * n + x] = v; if (state.mirror) f[y * n + (n - 1 - x)] = v; }
+  function fill(f, x, y, v) {
+    var n = state.size, target = f[y * n + x]; if (target === v) return;
+    var stack = [[x, y]];
+    while (stack.length) {
+      var p = stack.pop(), px = p[0], py = p[1];
+      if (px < 0 || py < 0 || px >= n || py >= n || f[py * n + px] !== target) continue;
+      f[py * n + px] = v;
+      stack.push([px + 1, py], [px - 1, py], [px, py + 1], [px, py - 1]);
+    }
+  }
+  function apply(e) {
+    var c = cellAt(e); if (!c) return;
+    var idx = c.y * state.size + c.x; if (idx === lastCell) return; lastCell = idx;
+    var f = state.frames[state.cur];
+    var tool = erasing ? "eraser" : state.tool;
+    if (tool === "pencil") setPx(f, c.x, c.y, state.color);
+    else if (tool === "eraser") setPx(f, c.x, c.y, null);
+    else if (tool === "fill") fill(f, c.x, c.y, state.color);
+    else if (tool === "pick") { var v = f[idx]; if (v) setColor(v); }
+    renderAll();
+  }
+  cv.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+  cv.addEventListener("pointerdown", function (e) {
+    e.preventDefault(); cv.setPointerCapture(e.pointerId);
+    drawing = true; erasing = e.button === 2; lastCell = -1;
+    if (state.tool !== "pick" || erasing) pushUndo();
+    apply(e);
+  });
+  cv.addEventListener("pointermove", function (e) { if (drawing && (state.tool === "pencil" || state.tool === "eraser" || erasing)) apply(e); });
+  window.addEventListener("pointerup", function () { if (drawing) { drawing = false; persist(); } });
+
+  // render
+  function drawFrame(c2, f, n, scale, alpha) {
+    c2.globalAlpha = alpha || 1;
+    for (var i = 0; i < f.length; i++) if (f[i]) { c2.fillStyle = f[i]; c2.fillRect((i % n) * scale, Math.floor(i / n) * scale, scale, scale); }
+    c2.globalAlpha = 1;
+  }
+  function renderAll() {
+    var n = state.size, s = cv.width / n;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    if (document.getElementById("pe-onion").checked && state.cur > 0) drawFrame(ctx, state.frames[state.cur - 1], n, s, 0.25);
+    drawFrame(ctx, state.frames[state.cur], n, s, 1);
+    if (document.getElementById("pe-grid").checked && n <= 32) {
+      ctx.strokeStyle = "rgba(0,0,0,.15)"; ctx.lineWidth = 1;
+      for (var i = 0; i <= n; i++) { var p = Math.round(i * s) + .5; ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, cv.height); ctx.moveTo(0, p); ctx.lineTo(cv.width, p); ctx.stroke(); }
+    }
+    if (state.mirror) { ctx.strokeStyle = "rgba(232,72,59,.6)"; ctx.beginPath(); ctx.moveTo(cv.width / 2, 0); ctx.lineTo(cv.width / 2, cv.height); ctx.stroke(); }
+    renderFrames();
+  }
+  var framesEl = document.getElementById("pe-frames");
+  function renderFrames() {
+    framesEl.innerHTML = "";
+    state.frames.forEach(function (f, i) {
+      var t = document.createElement("canvas"); t.width = state.size; t.height = state.size;
+      drawFrame(t.getContext("2d"), f, state.size, 1, 1);
+      t.className = i === state.cur ? "sel" : ""; t.title = "Frame " + (i + 1);
+      t.addEventListener("click", function () { state.cur = i; renderAll(); });
+      framesEl.appendChild(t);
+    });
+  }
+  document.getElementById("pe-add").addEventListener("click", function () { pushUndo(); state.frames.splice(state.cur + 1, 0, blank(state.size)); state.cur++; persist(); renderAll(); });
+  document.getElementById("pe-dup").addEventListener("click", function () { pushUndo(); state.frames.splice(state.cur + 1, 0, state.frames[state.cur].slice()); state.cur++; persist(); renderAll(); });
+  document.getElementById("pe-del").addEventListener("click", function () {
+    pushUndo();
+    if (state.frames.length === 1) state.frames[0] = blank(state.size); else { state.frames.splice(state.cur, 1); state.cur = Math.max(0, state.cur - 1); }
+    persist(); renderAll();
+  });
+  document.getElementById("pe-onion").addEventListener("change", renderAll);
+  document.getElementById("pe-grid").addEventListener("change", renderAll);
+  document.getElementById("pe-clear").addEventListener("click", function () { pushUndo(); state.frames[state.cur] = blank(state.size); persist(); renderAll(); });
+  document.getElementById("pe-size").addEventListener("change", function (e) {
+    var n = +e.target.value, old = state.size; pushUndo();
+    state.frames = state.frames.map(function (f) { var nf = blank(n); for (var y = 0; y < Math.min(n, old); y++) for (var x = 0; x < Math.min(n, old); x++) nf[y * n + x] = f[y * old + x]; return nf; });
+    state.size = n; persist(); renderAll();
+  });
+
+  // preview
+  var pv = document.getElementById("pe-preview"), pctx = pv.getContext("2d"), pf = 0, fpsEl = document.getElementById("pe-fps");
+  fpsEl.addEventListener("input", function () { document.getElementById("pe-fpsv").textContent = fpsEl.value; });
+  var lastT = 0;
+  (function anim(t) {
+    if (t - lastT >= 1000 / +fpsEl.value) {
+      lastT = t; pf = (pf + 1) % state.frames.length;
+      pctx.clearRect(0, 0, 96, 96); drawFrame(pctx, state.frames[pf] || state.frames[0], state.size, 96 / state.size, 1);
+    }
+    requestAnimationFrame(anim);
+  })(0);
+
+  // export
+  function download(canvas, name) {
+    canvas.toBlob(function (b) { var a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = name; a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000); });
+  }
+  function exportFrames(list, name) {
+    var k = +document.getElementById("pe-scale").value, n = state.size, c = document.createElement("canvas");
+    c.width = n * k * list.length; c.height = n * k;
+    var c2 = c.getContext("2d");
+    list.forEach(function (f, i) { c2.save(); c2.translate(i * n * k, 0); drawFrame(c2, f, n, k, 1); c2.restore(); });
+    download(c, name);
+  }
+  document.getElementById("pe-png").addEventListener("click", function () { exportFrames([state.frames[state.cur]], "sprite_frame" + (state.cur + 1) + ".png"); });
+  document.getElementById("pe-sheet").addEventListener("click", function () { exportFrames(state.frames, "sprite_sheet_" + state.frames.length + "x" + state.size + ".png"); });
+
+  // keys
+  document.addEventListener("keydown", function (e) {
+    if (/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); doUndo(); return; }
+    var map = { b: "pencil", e: "eraser", g: "fill", i: "pick", m: "mirror" }, t = map[e.key.toLowerCase()];
+    if (t && !e.ctrlKey && !e.metaKey) setTool(t);
+    if (e.key === "ArrowRight") { state.cur = Math.min(state.frames.length - 1, state.cur + 1); renderAll(); }
+    if (e.key === "ArrowLeft") { state.cur = Math.max(0, state.cur - 1); renderAll(); }
+  });
+
+  setColor(state.color); renderAll();
+})();
+</script>

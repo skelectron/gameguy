@@ -1,0 +1,111 @@
+---
+title: Game feel & juice
+description: Make controls responsive and actions satisfying with acceleration curves, input forgiveness, screen shake, hit-stop, particles and sound, with a live demo.
+---
+<article class="lesson">
+<h1>Game feel &amp; juice</h1>
+
+<p><b>Game feel</b> is how controlling the game feels physically: responsive or sluggish, crunchy or floaty. <b>Juice</b> is the extra feedback that makes actions satisfying. Neither changes the rules, but both change how the game feels to play.</p>
+
+<h2>Try it</h2>
+<p>Toggle each effect and jump around (<kbd>←</kbd><kbd>→</kbd> to move, <kbd>Space</kbd> to jump, after clicking the canvas). Turn them all off, then all on.</p>
+<div class="demo">
+  <canvas id="feel" width="480" height="200" aria-label="Interactive game feel demo"></canvas>
+  <div class="controls">
+    <label><input type="checkbox" data-f="accel" checked> Acceleration</label>
+    <label><input type="checkbox" data-f="coyote" checked> Coyote + buffer</label>
+    <label><input type="checkbox" data-f="cut" checked> Variable jump</label>
+    <label><input type="checkbox" data-f="squash" checked> Squash &amp; stretch</label>
+    <label><input type="checkbox" data-f="dust" checked> Dust</label>
+    <label><input type="checkbox" data-f="shake" checked> Landing shake</label>
+  </div>
+</div>
+
+<h2>The feel toolkit</h2>
+<h3>Responsiveness</h3>
+<ul>
+  <li><b>Acceleration and deceleration</b>: quick to start, fast to stop. Raw instant velocity feels robotic, and very slow acceleration feels like driving on ice.</li>
+  <li><b>Input forgiveness</b>: coyote time, jump buffering, and slightly generous hitboxes for the player (and slightly smaller ones for enemy bullets).</li>
+  <li><b>Variable jump height</b>: hold to jump higher. This gives the player fine control.</li>
+  <li><b>Snappier falls</b>: higher gravity on the way down feels less floaty.</li>
+</ul>
+<h3>Feedback (juice)</h3>
+<ul>
+  <li><b>Squash &amp; stretch</b> on jump and land.</li>
+  <li><b>Particles</b>: dust, sparks, coin sparkles.</li>
+  <li><b>Screen shake</b>, small and short. Always offer an option to turn it off.</li>
+  <li><b>Hit-stop</b>: freeze for 2–6 frames on big impacts.</li>
+  <li><b>Sound</b> on every action, with a small random pitch variation (±5%).</li>
+  <li><b>Easing</b> on UI and camera motion instead of linear movement.</li>
+</ul>
+
+<div class="callout warn"><span class="t">DON'T OVERDO IT</span>
+<p>Juice should support the gameplay, not hide it. Too much shake causes nausea and makes the screen hard to read. Expose the key tuning values in a debug UI (<a href="/brutal/imgui">ImGui</a>) and tune them by <em>playing</em>, not by reasoning about them.</p>
+</div>
+
+<div class="exercise"><b>EXERCISE</b>
+<p>Add squash and stretch, landing dust and a coin sparkle to <a href="/brutal/capstone">Coin Dash</a>. Ask a friend to play the version without juice and then the version with it, and write down what they say.</p>
+</div>
+</article>
+
+<script>
+(function () {
+  var c = document.getElementById("feel"), g = c.getContext("2d"), W = 480, H = 200, FLOOR = 170;
+  var F = {}; document.querySelectorAll("[data-f]").forEach(function (cb) { F[cb.dataset.f] = cb.checked; cb.addEventListener("change", function () { F[cb.dataset.f] = cb.checked; }); });
+  var p = { x: 60, y: FLOOR - 16, vx: 0, vy: 0, ground: true, coyote: 0, sx: 1, sy: 1 }, keys = {}, buf = 0, dust = [], shake = 0;
+  var plats = [[180, 120, 60], [300, 90, 60], [390, 130, 70]];
+  c.tabIndex = 0;
+  c.addEventListener("click", function () { c.focus(); });
+  c.addEventListener("keydown", function (e) {
+    if (["ArrowLeft", "ArrowRight", "Space", "ArrowUp"].indexOf(e.code) >= 0) e.preventDefault();
+    keys[e.code] = true; if ((e.code === "Space" || e.code === "ArrowUp") && !e.repeat) buf = 0.1;
+  });
+  c.addEventListener("keyup", function (e) { keys[e.code] = false; });
+  c.addEventListener("blur", function () { keys = {}; });
+  function groundAt(x, y, vy) {
+    if (y + 16 >= FLOOR && vy >= 0) return FLOOR;
+    for (var i = 0; i < plats.length; i++) { var pl = plats[i]; if (x + 12 > pl[0] && x < pl[0] + pl[2] && y + 16 >= pl[1] && y + 16 - vy / 60 <= pl[1] + 2 && vy >= 0) return pl[1]; }
+    return null;
+  }
+  function step(dt) {
+    var dir = (keys.ArrowRight ? 1 : 0) - (keys.ArrowLeft ? 1 : 0);
+    if (F.accel) { if (dir) p.vx += dir * 1400 * dt; else p.vx -= p.vx * Math.min(14 * dt, 1); p.vx = Math.max(-150, Math.min(150, p.vx)); }
+    else p.vx = dir * 150;
+    p.coyote = p.ground ? (F.coyote ? 0.08 : 0) : p.coyote - dt;
+    buf -= dt; if (!F.coyote && buf < 0.09) buf = 0;
+    if (buf > 0 && (p.ground || p.coyote > 0)) { p.vy = -360; buf = 0; p.coyote = 0; p.ground = false; if (F.squash) { p.sx = 0.7; p.sy = 1.35; } }
+    if (F.cut && !(keys.Space || keys.ArrowUp) && p.vy < -130) p.vy = -130;
+    p.vy = Math.min(p.vy + (p.vy > 0 ? 1300 : 1000) * dt, 500);
+    p.x = Math.max(0, Math.min(W - 12, p.x + p.vx * dt));
+    var was = p.ground; p.y += p.vy * dt; p.ground = false;
+    var gy = groundAt(p.x, p.y, p.vy);
+    if (gy !== null) {
+      if (!was && p.vy > 200) {
+        if (F.squash) { p.sx = 1.4; p.sy = 0.65; }
+        if (F.dust) for (var i = 0; i < 8; i++) dust.push({ x: p.x + 6, y: gy, vx: (Math.random() - .5) * 120, vy: -Math.random() * 60, l: .4 });
+        if (F.shake) shake = 0.12;
+      }
+      p.y = gy - 16; p.vy = 0; p.ground = true;
+    }
+    p.sx += (1 - p.sx) * Math.min(12 * dt, 1); p.sy += (1 - p.sy) * Math.min(12 * dt, 1);
+    dust.forEach(function (d) { d.x += d.vx * dt; d.y += d.vy * dt; d.vy += 200 * dt; d.l -= dt; });
+    dust = dust.filter(function (d) { return d.l > 0; });
+    shake = Math.max(0, shake - dt);
+  }
+  function draw() {
+    var ox = shake > 0 ? Math.round((Math.random() - .5) * 6) : 0, oy = shake > 0 ? Math.round((Math.random() - .5) * 6) : 0;
+    g.setTransform(1, 0, 0, 1, ox, oy);
+    g.fillStyle = "#1d1b26"; g.fillRect(-10, -10, W + 20, H + 20);
+    g.fillStyle = "#7a4a2e"; g.fillRect(0, FLOOR, W, H - FLOOR); g.fillStyle = "#1f9d72"; g.fillRect(0, FLOOR, W, 3);
+    plats.forEach(function (pl) { g.fillStyle = "#7a4a2e"; g.fillRect(pl[0], pl[1], pl[2], 8); g.fillStyle = "#1f9d72"; g.fillRect(pl[0], pl[1], pl[2], 3); });
+    dust.forEach(function (d) { g.fillStyle = "rgba(236,233,245," + d.l * 2 + ")"; g.fillRect(Math.round(d.x), Math.round(d.y), 2, 2); });
+    var w = 12 * p.sx, h = 16 * p.sy;
+    g.fillStyle = "#e8483b"; g.fillRect(Math.round(p.x + 6 - w / 2), Math.round(p.y + 16 - h), Math.round(w), Math.round(h));
+    g.fillStyle = "#ffd2a6"; g.fillRect(Math.round(p.x + 6 - w / 2 + 2), Math.round(p.y + 16 - h + 3), Math.max(1, Math.round(w - 4)), Math.max(1, Math.round(h * 0.35)));
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.fillStyle = "#a6a2b8"; g.font = "11px monospace"; g.fillText(document.activeElement === c ? "← → move, Space jump" : "click to play", 8, 16);
+  }
+  var acc = 0, last = performance.now();
+  (function loop(now) { acc += Math.min((now - last) / 1000, .25); last = now; while (acc >= 1 / 60) { step(1 / 60); acc -= 1 / 60; } draw(); requestAnimationFrame(loop); })(last);
+})();
+</script>

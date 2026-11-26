@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Canvas size &amp; palettes · GameGuy</title>
+<meta name="description" content="Choose sprite sizes, game resolutions and colour palettes for pixel art that reads well and scales cleanly.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="/assets/js/lessons.js" defer></script>
+<script src="/assets/js/main.js" defer></script>
+</head>
+<body data-track="pixel" data-slug="canvas-palette">
+<article class="lesson">
+<h1>Canvas size &amp; palettes</h1>
+
+<h2>Pick a sprite size</h2>
+<div class="table-wrap"><table>
+<tr><th>Size</th><th>Feels like</th><th>Good for</th></tr>
+<tr><td>8×8</td><td>Very early consoles; strongly iconic</td><td>Tiny roguelikes, jam games, learning</td></tr>
+<tr><td>16×16</td><td>Classic 8- and 16-bit era</td><td>Platformers, top-down RPGs. <b>Start here.</b></td></tr>
+<tr><td>32×32</td><td>Detailed 16-bit and modern indie</td><td>Characters with expression, detailed tiles</td></tr>
+<tr><td>64×64+</td><td>Hi-bit, illustration-like</td><td>Portraits, bosses, fighting games</td></tr>
+</table></div>
+<p>Bigger isn't better. Every doubling means <em>four times</em> as many pixels to draw for every animation frame.</p>
+
+<h2>Pick a game resolution</h2>
+<p>Choose a virtual resolution that scales to common screens by <b>whole numbers</b>:</p>
+<ul>
+  <li><b>320×180</b>: ×4 = 720p, ×6 = 1080p, ×8 = 1440p, ×12 = 4K. (Coin Dash uses 320×176 plus a letterbox.)</li>
+  <li><b>640×360</b>: ×2 = 720p, ×3 = 1080p, ×4 = 1440p.</li>
+  <li><b>256×224 / 256×240</b>: classic 4:3 console sizes.</li>
+</ul>
+<p>In BRUTAL with SDL, <code>SetRenderLogicalPresentation(renderer, 320, 180, IntegerScale)</code> handles this for you (see <a href="/brutal/sdl-2d">Pixel-perfect 2D with SDL</a>).</p>
+
+<h2>Palettes</h2>
+<p>A limited palette makes art <b>consistent</b> and decisions <b>faster</b>. Start with 8–16 colours. Here's the <b>GameGuy 16</b> palette, which this site and the pixel editor use:</p>
+<div class="swatches" aria-label="GameGuy 16 palette">
+  <span style="background:#1d1b26"></span><span style="background:#3a3650"></span><span style="background:#5d5a6b"></span><span style="background:#a6a2b8"></span>
+  <span style="background:#ece9f5"></span><span style="background:#7a4a2e"></span><span style="background:#c2783f"></span><span style="background:#ffd2a6"></span>
+  <span style="background:#e8483b"></span><span style="background:#c2407e"></span><span style="background:#ffc566"></span><span style="background:#fff4c2"></span>
+  <span style="background:#1f9d72"></span><span style="background:#5fd39c"></span><span style="background:#2f7de1"></span><span style="background:#7cc7ff"></span>
+</div>
+
+<h3>Building colour ramps</h3>
+<p>A <b>ramp</b> is a set of shades of one material, running from dark to light. Good ramps don't just change brightness. They <b>shift hue</b>: shadows lean toward cool colours (blue or purple) and highlights toward warm ones (yellow). This "hue shifting" makes art feel alive instead of muddy.</p>
+<div class="art-row">
+  <figure><canvas data-art="abcde" data-pal='{"a":"#3a1f1a","b":"#6b3a2a","c":"#a0603a","d":"#d0904a","e":"#f0c070"}' data-scale="36" data-grid="off"></canvas><figcaption>Hue-shifted ramp (dark leans purple-red, light leans yellow)</figcaption></figure>
+  <figure><canvas data-art="abcde" data-pal='{"a":"#2a1a10","b":"#553520","c":"#805030","d":"#aa6b40","e":"#d58650"}' data-scale="36" data-grid="off"></canvas><figcaption>Brightness-only ramp: flatter and muddier</figcaption></figure>
+</div>
+
+<div class="callout tip"><span class="t">PALETTE RESOURCES</span>
+<p><a href="https://lospec.com/palette-list">Lospec's palette list</a> has thousands of free palettes. Popular choices for learning include PICO-8, Endesga 32, Sweetie 16 and AAP-64.</p>
+</div>
+
+<div class="exercise"><b>EXERCISE</b>
+<p>In the <a href="/pixel/editor">pixel editor</a>, draw a 16×16 apple using <b>only 5 colours</b>: an outline, a 3-step red ramp, and a leaf green.</p>
+</div>
+</article>
+</body>
+</html>

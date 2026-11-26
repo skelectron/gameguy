@@ -1,0 +1,130 @@
+---
+title: "Project: build a mini engine on BRUTAL"
+description: A milestone-based project to build Pixie, a small 2D engine on top of BRUTAL packages, with app host, input, scenes, sprite batch, assets, audio and debug tools.
+---
+<article class="lesson">
+<h1>Project: build a mini engine on BRUTAL</h1>
+
+<div class="objectives"><b>You will build "Pixie"</b>, a small 2D engine:
+<ul>
+  <li>An <code>App</code> host that owns the window, the loop and the systems</li>
+  <li>Input actions, a scene stack, a sprite batch, a texture cache, audio voices and a debug overlay</li>
+  <li>A game (Coin Dash 2) written <em>only</em> against Pixie's API, never calling BRUTAL directly</li>
+</ul></div>
+
+<h2>Project layout</h2>
+<script type="text/x-code" data-lang="none" data-file="folders">
+  Pixie/
+    Pixie.csproj            <- references Ahwoo.Brutal.Glfw, .OpenGl, .ImGui(.Backends), .OpenAl, .Stb/.Texture, .Logging
+    App.cs                  <- window + fixed-step loop + system lifetime
+    Input.cs                <- actions, pressed/held/released, rebinding
+    Scenes.cs               <- Scene + SceneStack
+    Graphics/SpriteBatch.cs <- batched quads, camera, pixel-perfect target
+    Graphics/Textures.cs    <- handles, cache, hot reload, fallback texture
+    Audio/Voices.cs         <- OpenAL voice pool + buses
+    Debug/Overlay.cs        <- ImGui F1 panel, profiler, debug draw
+  CoinDash2/
+    CoinDash2.csproj        <- references Pixie only
+    Program.cs
+</script>
+
+<h2>The heart: App</h2>
+<script type="text/x-code" data-file="Pixie/App.cs (sketch)">
+  public abstract class App : IDisposable
+  {
+      public const double STEP = 1.0 / 60.0;
+      protected GlfwWindow Window { get; private set; } = null!;
+      public Input Input { get; private set; } = null!;
+      public SceneStack Scenes { get; } = new();
+      public double Time { get; private set; }
+      public float Alpha { get; private set; }           // interpolation factor for rendering
+
+      public void Run(string title, int2 size)
+      {
+          if (!Glfw.Init()) throw new InvalidOperationException("GLFW init failed");
+          try
+          {
+              CreateGlWindow(title, size);              // hints + MakeContextCurrent + Glad (OpenGL lesson)
+              Input = new Input(Window, DefaultBindings());
+              Load();                                   // game hook: load assets, push first scene
+
+              var previous = Glfw.Time;
+              var accumulator = 0.0;
+              while (!Window.ShouldClose && !Scenes.IsEmpty)
+              {
+                  Glfw.PollEvents();
+                  var now = Glfw.Time;
+                  accumulator += Math.Min(now - previous, 0.25);
+                  previous = now;
+
+                  while (accumulator >= STEP)
+                  {
+                      Scenes.Update((float)STEP);
+                      Input.EndStep();
+                      Time += STEP;
+                      accumulator -= STEP;
+                  }
+                  Alpha = (float)(accumulator / STEP);
+
+                  BeginFrame();                         // clear, set camera
+                  Scenes.Draw();
+                  EndFrame();                           // flush batch, debug overlay, SwapBuffers
+              }
+          }
+          finally
+          {
+              Dispose();                                // systems in reverse order
+              Window?.Dispose();
+              Glfw.Terminate();
+          }
+      }
+
+      protected abstract void Load();
+      protected virtual InputMap DefaultBindings() => new();
+      public virtual void Dispose() { }
+      // CreateGlWindow, BeginFrame, EndFrame: implement using the lessons in this track
+  }
+</script>
+
+<h2>The game side</h2>
+<script type="text/x-code" data-file="CoinDash2/Program.cs">
+  using Pixie;
+
+  using var game = new CoinDash2();
+  game.Run("Coin Dash 2", new(1280, 720));
+
+  sealed class CoinDash2 : App
+  {
+      protected override void Load()
+      {
+          Assets.Textures.Load("assets/atlas.png");
+          Scenes.Push(new SplashScene());     // BRUTAL logo first, as the license requires
+      }
+  }
+</script>
+<p>Notice that the game never calls GLFW or OpenGL. That's the payoff of the layering from <a href="/enginedev/architecture">Engine architecture</a>: you could port Pixie to SDL or Vulkan without touching CoinDash2.</p>
+
+<h2>Milestones</h2>
+<ol>
+  <li><b>M1: Loop.</b> <code>App</code> opens a window and clears it to a colour, with a 60 Hz fixed step and interpolation alpha. Measure ticks per second. <em>(<a href="/enginedev/main-loop">main loop</a>)</em></li>
+  <li><b>M2: Input.</b> Actions with pressed/held/released states, gamepad support and a dead zone. <em>(<a href="/enginedev/platform-input">platform &amp; input</a>)</em></li>
+  <li><b>M3: Sprites.</b> A <code>SpriteBatch</code> with an atlas and a pixel-perfect 320×180 target scaled by whole numbers. Aim for 10k sprites in 1 draw call. <em>(<a href="/enginedev/rendering-2d">2D rendering</a>)</em></li>
+  <li><b>M4: Scenes.</b> Splash → Title → Play ⇄ Pause → Credits. <em>(<a href="/enginedev/scenes">scenes</a>)</em></li>
+  <li><b>M5: Assets.</b> Texture handles with a magenta fallback and PNG hot reload. <em>(<a href="/enginedev/assets">assets</a>)</em></li>
+  <li><b>M6: Audio.</b> A voice pool, SFX and Music buses, and generated chip sounds. <em>(<a href="/enginedev/physics-audio">physics &amp; audio</a>)</em></li>
+  <li><b>M7: Tools.</b> An <kbd>F1</kbd> ImGui overlay with a profiler, time scale and hitbox debug drawing. <em>(<a href="/enginedev/tooling">tooling</a>)</em></li>
+  <li><b>M8: Ship.</b> Port Coin Dash, add 3 levels from text files, publish a self-contained build, and include NOTICE.txt and credits. <em>(<a href="/brutal/shipping">shipping</a>)</em></li>
+</ol>
+
+<div class="callout tip"><span class="t">STAY HONEST</span>
+<p>After each milestone, ask yourself whether the <em>game</em> needed this. If it didn't, don't build it yet. Pixie should be the smallest engine that ships Coin Dash 2. Grow it with your next game, not before.</p>
+</div>
+
+<h2>Stretch goals</h2>
+<ul>
+  <li>Swap the renderer backend to Vulkan (<code>Brutal.Vulkan</code> + <code>Vma</code>) behind the same <code>SpriteBatch</code> API.</li>
+  <li>Add a tilemap editor scene with ImGui docking and <code>NativeFileDialog</code>.</li>
+  <li>Use deterministic fixed steps for input-recording replays.</li>
+  <li>Run ECS systems on <code>Brutal.Concurrency</code> jobs.</li>
+</ul>
+</article>

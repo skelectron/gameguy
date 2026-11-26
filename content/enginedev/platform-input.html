@@ -1,0 +1,82 @@
+---
+title: Platform layer & input mapping
+description: Abstract windowing and input behind a platform layer, and map physical keys and gamepad buttons to game actions with pressed/held/released states.
+---
+<article class="lesson">
+<h1>Platform layer &amp; input mapping</h1>
+
+<p>Game code should never know whether it runs on GLFW or SDL, or whether the player is using a keyboard or a gamepad. The <b>platform layer</b> hides those details, and <b>input mapping</b> turns physical buttons into game <em>actions</em>.</p>
+
+<h2>Actions, not keys</h2>
+<script type="text/x-code">
+  enum GameAction { Left, Right, Jump, Pause, Count }
+
+  sealed class InputMap
+  {
+      private readonly Dictionary<GlfwKey, GameAction> _keys = new()
+      {
+          [GlfwKey.A] = GameAction.Left,  [GlfwKey.Left]  = GameAction.Left,
+          [GlfwKey.D] = GameAction.Right, [GlfwKey.Right] = GameAction.Right,
+          [GlfwKey.Space] = GameAction.Jump, [GlfwKey.W] = GameAction.Jump,
+          [GlfwKey.Escape] = GameAction.Pause,
+      };
+
+      public void Rebind(GlfwKey key, GameAction action) => _keys[key] = action;   // options menu!
+      public bool TryGet(GlfwKey key, out GameAction a) => _keys.TryGetValue(key, out a);
+  }
+</script>
+
+<h2>Pressed, held, released</h2>
+<p>Gameplay needs three questions per action: <em>did it just go down?</em> (jump), <em>is it down?</em> (run), and <em>did it just come up?</em> (variable jump height, charge shots). You answer them by keeping this frame's state and last frame's state:</p>
+<script type="text/x-code">
+  sealed class Input
+  {
+      private readonly bool[] _now = new bool[(int)GameAction.Count];
+      private readonly bool[] _prev = new bool[(int)GameAction.Count];
+      private readonly InputMap _map;
+
+      public Input(GlfwWindow window, InputMap map)
+      {
+          _map = map;
+          window.OnKey += (_, key, _, action, _) =>
+          {
+              if (action == GlfwKeyAction.Repeat || !_map.TryGet(key, out var a)) return;
+              _now[(int)a] = action == GlfwKeyAction.Press;
+          };
+      }
+
+      /// Call once per fixed step, AFTER gameplay has read the input.
+      public void EndStep() => Array.Copy(_now, _prev, _now.Length);
+
+      public bool Held(GameAction a)     => _now[(int)a];
+      public bool Pressed(GameAction a)  => _now[(int)a] && !_prev[(int)a];
+      public bool Released(GameAction a) => !_now[(int)a] && _prev[(int)a];
+      public float Axis(GameAction neg, GameAction pos) => (Held(pos) ? 1 : 0) - (Held(neg) ? 1 : 0);
+  }
+</script>
+
+<div class="callout warn"><span class="t">FIXED-STEP PITFALL</span>
+<p>If a frame runs <b>zero</b> fixed steps, a quick tap could be lost, and if it runs <b>two</b>, <code>Pressed</code> could fire twice. Calling <code>EndStep()</code> after each step fixes the second problem. For the first, buffer presses (a "pressed since last step" flag that the next step consumes), or use timers like Coin Dash's <code>jumpBuffer</code>.</p>
+</div>
+
+<h2>Gamepads</h2>
+<p>GLFW and SDL both support gamepads with a standard layout (<code>GlfwGamepadButton</code>, <code>GlfwGamepadAxis</code> in BRUTAL). Add them as another source feeding the same actions, and apply a <b>dead zone</b> to analog sticks:</p>
+<script type="text/x-code">
+  static float DeadZone(float v, float dz = 0.2f) =>
+      MathF.Abs(v) < dz ? 0 : MathF.Sign(v) * (MathF.Abs(v) - dz) / (1 - dz);   // rescaled, no jump at the edge
+</script>
+
+<h2>The rest of the platform layer</h2>
+<div class="table-wrap"><table>
+<tr><th>Concern</th><th>Abstraction</th><th>BRUTAL source</th></tr>
+<tr><td>Window</td><td><code>IWindow { Size; Title; ShouldClose; Present(); }</code></td><td><code>GlfwWindow</code> / SDL window</td></tr>
+<tr><td>Time</td><td><code>Clock.Now</code> (double seconds)</td><td><code>Glfw.Time</code>, <code>Stopwatch</code></td></tr>
+<tr><td>Files</td><td>Virtual paths (<code>"assets://hero.png"</code>) → real paths</td><td><code>System.IO</code>, <code>NativeFileDialog</code> for tools</td></tr>
+<tr><td>User data</td><td><code>SaveDir</code> per OS</td><td><code>Environment.GetFolderPath(SpecialFolder.ApplicationData)</code></td></tr>
+<tr><td>OS detection</td><td>Feature flags</td><td><code>Platform.IsMacOS</code>, <code>Platform.CurrentFamily</code></td></tr>
+</table></div>
+
+<div class="exercise"><b>EXERCISE</b>
+<p>Write an <code>IInputSource</code> interface with a GLFW keyboard implementation and an SDL keyboard implementation. Both should feed the same <code>Input</code> class. Then add a rebinding screen: "Press a key for JUMP…" captures the next key and calls <code>Rebind</code>.</p>
+</div>
+</article>

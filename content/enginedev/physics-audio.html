@@ -1,0 +1,83 @@
+---
+title: Integrating physics & audio
+description: How to wrap a physics library like Box2D or Jolt and an audio API like OpenAL inside your engine, covering sync, events, units and voice management.
+---
+<article class="lesson">
+<h1>Integrating physics &amp; audio</h1>
+
+<p>You'll almost never write a rigid-body solver or an audio mixer yourself. Engine work here is about <b>integration</b>: connecting a library such as <code>Brutal.Box2D</code>, <code>Brutal.Jolt</code> or <code>Brutal.OpenAl</code> to your entities, loop and assets.</p>
+
+<h2>Physics integration checklist</h2>
+<ol>
+  <li><b>Step in the fixed update.</b> <code>world.Step(STEP, subSteps)</code> goes inside the accumulator loop.</li>
+  <li><b>One owner of truth.</b> For physics-driven entities, the physics body owns the position. Copy <code>body.GetTransform()</code> into the render transform after stepping, and never write positions in both places.</li>
+  <li><b>Units.</b> Physics works in metres (0.1–10 m objects) and rendering in pixels. Convert in exactly one place.</li>
+  <li><b>Kinematic vs dynamic.</b> Player characters are often kinematic (moved by your code) or custom AABB controllers, while crates and debris are dynamic.</li>
+  <li><b>Contacts → gameplay events.</b> Read the begin-touch and sensor events after each step and turn them into game events (<code>CoinCollected</code>, <code>PlayerHurt</code>).</li>
+  <li><b>Lifetime.</b> Destroying an entity destroys its body. Disposing the world (e.g. on scene exit) destroys all of them.</li>
+</ol>
+
+<script type="text/x-code">
+  struct PhysicsBody { public B2Body Body; }       // ECS component holding the Box2D handle
+  struct Transform   { public float2 Pos; public float Angle; }
+
+  static void SyncFromPhysics(ComponentStore<PhysicsBody> bodies, ComponentStore<Transform> xf)
+  {
+      var span = bodies.Span;
+      for (var i = 0; i < span.Length; i++)
+      {
+          var e = bodies.EntityAt(i);
+          var t = span[i].Body.GetTransform();
+          ref var x = ref xf.Get(e);
+          x.Pos = t.P * PIXELS_PER_METRE;
+          x.Angle = MathF.Atan2(t.Q.S, t.Q.C);
+      }
+  }
+</script>
+
+<h2>Custom collision vs a physics engine</h2>
+<div class="table-wrap"><table>
+<tr><th>Use hand-written AABB/tile collision</th><th>Use Box2D/Jolt</th></tr>
+<tr><td>Platformers, top-down action, grid games</td><td>Stacking, ragdolls, vehicles, ropes, destruction</td></tr>
+<tr><td>You want exact, "unrealistic" control</td><td>You want emergent, realistic motion</td></tr>
+<tr><td>Simple and fully deterministic</td><td>Lots of features; tuning matters</td></tr>
+</table></div>
+<p>Many games use <em>both</em>: a custom controller for the player and Box2D for the props.</p>
+
+<h2>Audio integration</h2>
+<ul>
+  <li><b>Buffers are assets.</b> Load and decode each one once through the resource manager, and refer to it with a handle.</li>
+  <li><b>Sources are voices.</b> Keep a pool of, say, 32 OpenAL sources. To play a sound, take a free voice; if none is free, steal the quietest or oldest one.</li>
+  <li><b>Buses.</b> Group sounds into Master, Music, SFX and UI, each with a volume. The final volume is <code>sfx × master × userSetting</code>.</li>
+  <li><b>Positional audio.</b> Set each source's position and the listener's position (usually the camera) every frame.</li>
+  <li><b>Music streaming.</b> Queue several small buffers and refill them as they finish, instead of loading 5 minutes of PCM at once.</li>
+  <li><b>Gameplay triggers, audio reacts.</b> Gameplay raises <code>CoinCollected</code> and the audio system plays the sound. Gameplay code never calls OpenAL.</li>
+</ul>
+<script type="text/x-code">
+  sealed class Voices
+  {
+      private readonly AlSource[] _sources;
+      public float BusVolume = 1f;
+      public Voices(int count) => _sources = Enumerable.Range(0, count).Select(_ => Al.GenSource()).ToArray();
+
+      public void Play(AlBuffer buffer, float volume = 1f, float pitch = 1f)
+      {
+          foreach (var s in _sources)
+          {
+              if (s.State == AlSourceState.Playing) continue;
+              s.Buffer = buffer;
+              s.Gain = volume * BusVolume;
+              s.Pitch = pitch;      // tiny random pitch variation keeps repeated SFX from sounding robotic
+              s.Play();
+              return;
+          }
+          // all busy: skip (or steal the oldest)
+      }
+  }
+</script>
+<p>When shutting down, delete the sources with <code>Al.DeleteSources(_sources)</code> before the context is destroyed, as in <code>HelloOpenAl.cs</code>.</p>
+
+<div class="exercise"><b>EXERCISE</b>
+<p>Add a 16-voice pool to your Coin Dash build, with an SFX bus volume adjustable from an ImGui slider. Raise <code>CoinCollected</code> and <code>Jumped</code> events from gameplay, and have the audio system react to them.</p>
+</div>
+</article>

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Install .NET 10 &amp; run file-based apps · GameGuy</title>
+<meta name="description" content="Install the .NET 10 SDK and run C# straight from a single .cs file, with package and property directives.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="/assets/js/lessons.js" defer></script>
+<script src="/assets/js/main.js" defer></script>
+</head>
+<body data-track="csharp" data-slug="setup">
+<article class="lesson">
+<h1>Install .NET 10 &amp; run file-based apps</h1>
+
+<h2>Install</h2>
+<ol>
+  <li>Download the <b>.NET 10 SDK</b> from <a href="https://dotnet.microsoft.com/download">dotnet.microsoft.com/download</a>.</li>
+  <li>Install an editor: <b>VS Code</b> with the C# Dev Kit, <b>Visual Studio</b> or <b>JetBrains Rider</b>.</li>
+  <li>Check the install in a terminal:</li>
+</ol>
+<script type="text/x-code" data-lang="bash">
+  dotnet --version
+  # 10.0.xxx
+</script>
+
+<h2>Your first file-based app</h2>
+<p>.NET 10 can run a single <code>.cs</code> file, with no project or solution. This makes small experiments almost free:</p>
+<script type="text/x-code" data-file="hello.cs">
+  Console.WriteLine("Hello, GameGuy!");
+
+  var hp = 100;
+  hp -= 35;
+  Console.WriteLine($"HP left: {hp}");
+</script>
+<script type="text/x-code" data-lang="bash">
+  dotnet run hello.cs
+</script>
+<p>This is called <b>top-level statements</b>: the file itself is your <code>Main</code> method. You can still declare functions, classes and structs <em>below</em> the statements.</p>
+
+<h2>Directives</h2>
+<p>Lines beginning with <code>#:</code> configure the app. They're how every BRUTAL sample pulls in packages:</p>
+<script type="text/x-code" data-file="window.cs">
+  #:package Ahwoo.Brutal.Glfw@2026.10.5     // NuGet package @ version
+  #:property AllowUnsafeBlocks=true         // MSBuild property
+
+  using Brutal.GlfwApi;
+  // ...
+</script>
+<ul>
+  <li><code>#:package</code> adds a NuGet package reference.</li>
+  <li><code>#:property</code> sets a build property, such as enabling <code>unsafe</code> code.</li>
+</ul>
+
+<h2>Growing into a project</h2>
+<p>When one file isn't enough, convert it to a project, or start one from scratch:</p>
+<script type="text/x-code" data-lang="bash">
+  dotnet project convert hello.cs     # turns the file + directives into a .csproj
+  # or
+  dotnet new console -n MyGame
+  cd MyGame
+  dotnet add package Ahwoo.Brutal.Core
+  dotnet run
+</script>
+
+<div class="exercise"><b>EXERCISE</b>
+<p>Write <code>dice.cs</code>, which rolls two six-sided dice 10 times with <code>Random.Shared.Next(1, 7)</code> and prints each total. Then print how many rolls were doubles.</p>
+</div>
+</article>
+</body>
+</html>

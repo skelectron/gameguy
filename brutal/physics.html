@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>2D physics with Box2D · GameGuy</title>
+<meta name="description" content="Create a Box2D world in BRUTAL, add static and dynamic bodies, step at a fixed rate and draw the results.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="/assets/js/lessons.js" defer></script>
+<script src="/assets/js/main.js" defer></script>
+</head>
+<body data-track="brutal" data-slug="physics">
+<article class="lesson">
+<h1>2D physics with Box2D</h1>
+
+<div class="objectives"><b>You will learn</b>
+<ul>
+  <li>Box2D concepts: world, bodies, shapes and steps</li>
+  <li>Static vs dynamic bodies</li>
+  <li>Units: why you should simulate in metres, not pixels</li>
+  <li>How to read body transforms to draw rotated boxes</li>
+</ul></div>
+
+<p><b>Box2D</b> is a famous 2D physics engine that has been used in thousands of games. <code>Brutal.Box2D</code> binds Box2D v3. For 3D, use <code>Brutal.Jolt</code> instead (see <code>HelloJolt</code> and <code>DemoJolt</code>).</p>
+
+<h2>Headless first: drop a box</h2>
+<script type="text/x-code" data-file="HelloBox2D.cs">
+  #:package Ahwoo.Brutal.Box2D@2026.10.2
+  #:package Ahwoo.Brutal.Core@2026.10.4
+  #:package Ahwoo.Brutal.Numerics@2026.10.2
+
+  using Brutal.Box2DApi;
+  using Brutal.Numerics;
+
+  // Default gravity is (0, -10). Disposing the world also destroys its bodies and shapes.
+  using var world = Box2D.CreateWorld(B2WorldDef.Default);
+
+  // A static ground whose top surface is at y = 0.
+  var ground = world.CreateBody(new B2BodyDef { Position = new float2(0, -0.5f) });
+  ground.CreatePolygonShape(B2ShapeDef.Default, Box2D.MakeBox(5, 0.5f));   // half-extents!
+
+  // A 1x1 dynamic box, 4 units above the ground.
+  var box = world.CreateBody(new B2BodyDef { Type = B2BodyType.Dynamic, Position = new float2(0, 4) });
+  box.CreatePolygonShape(B2ShapeDef.Default, Box2D.MakeBox(0.5f, 0.5f));
+
+  const float TIME_STEP = 1.0f / 60.0f;
+  for (var step = 0; step <= 120; step++)
+  {
+      if (step > 0)
+          world.Step(TIME_STEP, 4);   // 4 sub-steps for stability
+
+      if (step % 20 == 0)
+      {
+          var p = box.GetPosition();
+          Console.WriteLine($"t={step * TIME_STEP:F2}s  y={p.Y:F2}  awake={box.IsAwake()}");
+      }
+  }
+  // The box lands and settles with its centre at y = 0.5, then falls asleep.
+</script>
+
+<h2>Key ideas</h2>
+<div class="table-wrap"><table>
+<tr><th>Concept</th><th>Meaning</th></tr>
+<tr><td><b>World</b></td><td>Holds every body and owns gravity. <code>Step(dt, subSteps)</code> advances the simulation.</td></tr>
+<tr><td><b>Body</b></td><td>Has a position, rotation and velocity. <code>Static</code> (default) never moves, <code>Dynamic</code> is moved by forces, and <code>Kinematic</code> is moved by you.</td></tr>
+<tr><td><b>Shape</b></td><td>Collision geometry attached to a body. <code>MakeBox</code> takes <b>half</b> width and height.</td></tr>
+<tr><td><b>Sleep</b></td><td>Bodies at rest go to sleep, so they cost nothing until something touches them.</td></tr>
+</table></div>
+
+<div class="callout warn"><span class="t">METRES, NOT PIXELS</span>
+<p>Box2D is tuned for objects between about <b>0.1 and 10 metres</b>. A 32-pixel crate should be a 1-metre box, not a 32-metre one. Keep physics in metres and convert when you draw: <code>screen = world * PIXELS_PER_METRE</code>.</p>
+</div>
+
+<h2>Drawing it</h2>
+<p><code>samples/Demo/DemoBox2D.cs</code> drops 12 boxes and draws them with OpenGL. The core idea: for each body, get its transform (position <code>P</code> plus rotation <code>Q</code>, stored as cos <code>C</code> and sin <code>S</code>) and rotate the box's four corners:</p>
+<script type="text/x-code">
+  var transform = body.GetTransform();
+  foreach (var corner in corners)               // (-1,-1), (1,-1), (1,1)...
+  {
+      var local = corner * halfSize;
+      var p = transform.P + new float2(
+          transform.Q.C * local.X - transform.Q.S * local.Y,
+          transform.Q.S * local.X + transform.Q.C * local.Y);
+      // write p into the vertex buffer...
+  }
+</script>
+<p>The rendering goes in the loop's <em>render</em> part, and <code>world.Step</code> goes inside the fixed-timestep loop from the <a href="/brutal/game-loop">game loop lesson</a>. Box2D gives much more stable results with a fixed <code>dt</code>.</p>
+
+<h2>When <em>not</em> to use a physics engine</h2>
+<p>Precise platformers (think tight jumps and pixel-perfect ledges) often feel better with <b>hand-written collision</b>: AABBs plus tile checks. Realistic physics gives you momentum and bounce you didn't ask for. Use Box2D for physics-driven fun such as stacking, ragdolls, vehicles and destruction. The capstone uses simple AABBs, and the engine track explains why in <a href="/enginedev/physics-audio">Integrating physics &amp; audio</a>.</p>
+
+<div class="exercise"><b>EXERCISE</b>
+<ol>
+  <li>Run <code>DemoBox2D.cs</code>. Then change the boxes' <code>Rotation</code> and starting heights to build a pyramid.</li>
+  <li>Using the input from the game loop lesson, apply a horizontal impulse to one box when you press <kbd>Space</kbd>. (Look up the body methods in <code>Brutal.Box2D</code>; reading the bindings is a skill too!)</li>
+</ol>
+</div>
+</article>
+</body>
+</html>

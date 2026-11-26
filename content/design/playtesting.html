@@ -1,0 +1,37 @@
+---
+title: Prototyping & playtesting
+description: Prototype fast, run useful playtests, and turn observations into design changes.
+---
+<article class="lesson">
+<h1>Prototyping &amp; playtesting</h1>
+
+<h2>Prototype the question</h2>
+<p>Every prototype should answer <b>one question</b>: "Is wall-jumping fun in tight corridors?" or "Do players understand the build menu?". Throw-away code is fine. A BRUTAL single-file app (<code>dotnet run proto.cs</code>) with rectangles is a perfect prototyping tool.</p>
+
+<h2>Running a playtest</h2>
+<ol>
+  <li><b>Don't explain.</b> Hand over the controller and say only what a real player would know.</li>
+  <li><b>Watch, don't help.</b> Where people get stuck is your most valuable data.</li>
+  <li><b>Ask them to think aloud</b>: "Say what you're thinking as you play."</li>
+  <li><b>Take notes with timestamps</b>: "02:10 tried to jump on the background tree".</li>
+  <li><b>Interview afterwards</b>: "What was the goal? What was most frustrating? When did you want to stop?"</li>
+</ol>
+
+<div class="callout warn"><span class="t">LISTEN TO PROBLEMS, NOT SOLUTIONS</span>
+<p>Players are excellent at noticing <em>that</em> something is wrong and often poor at suggesting <em>how</em> to fix it. "Add a double jump" usually means "this jump felt unfair". Look for the cause underneath.</p>
+</div>
+
+<h2>Instrument your game</h2>
+<p>Log events such as deaths (with position), level times and quits using <code>Brutal.Logging</code>. Plot the death positions on the level map to build a heat map. Clusters show you where the difficulty spikes are.</p>
+<script type="text/x-code">
+  var telemetry = LogCategory.Make("Telemetry");
+  telemetry.Info($"death level={levelId} x={px:F0} y={py:F0} t={time:F1}");
+</script>
+
+<h2>Iterate</h2>
+<p>Test → note → fix the <b>biggest</b> problem → test again with <em>new</em> people. Fresh testers matter, because once someone has learned your game they can't un-learn it.</p>
+
+<div class="exercise"><b>EXERCISE</b>
+<p>Run a 3-person playtest of your Coin Dash levels. Record death positions, make a heat map, and fix the top two problems. Write a short before-and-after report.</p>
+</div>
+</article>

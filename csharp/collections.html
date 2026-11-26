@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Arrays, lists, dictionaries &amp; Span · GameGuy</title>
+<meta name="description" content="Choose the right C# collection for game code, and learn Span&lt;T>, the key to fast, allocation-free code.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="/assets/js/lessons.js" defer></script>
+<script src="/assets/js/main.js" defer></script>
+</head>
+<body data-track="csharp" data-slug="collections">
+<article class="lesson">
+<h1>Arrays, lists, dictionaries &amp; Span</h1>
+
+<h2>The everyday collections</h2>
+<script type="text/x-code">
+  int[] scores = new int[10];                       // fixed size, fastest
+  int[,] grid = new int[20, 11];                    // 2D array: grid[x, y]
+  List<string> log = ["start"];                     // growable (collection expression)
+  Dictionary<string, int> inventory = new() { ["potion"] = 3 };
+  HashSet<int> visited = [];
+  Queue<int> openList = new();                      // BFS pathfinding
+  Stack<string> sceneStack = new();                 // menus over gameplay
+
+  inventory["potion"]--;
+  if (inventory.TryGetValue("key", out var keys)) Console.WriteLine(keys);
+</script>
+
+<div class="table-wrap"><table>
+<tr><th>Need</th><th>Use</th><th>Cost</th></tr>
+<tr><td>Fixed number of things, index access</td><td><code>T[]</code></td><td>O(1) index, no overhead</td></tr>
+<tr><td>Add and remove at the end</td><td><code>List&lt;T&gt;</code></td><td>O(1) amortised add; <code>Remove(x)</code> is O(n)</td></tr>
+<tr><td>Look up by key</td><td><code>Dictionary&lt;K,V&gt;</code></td><td>O(1) average</td></tr>
+<tr><td>"Have I seen this?"</td><td><code>HashSet&lt;T&gt;</code></td><td>O(1) average</td></tr>
+<tr><td>Native memory, zero GC</td><td>BRUTAL <code>NativeList&lt;T&gt;</code></td><td>You dispose it</td></tr>
+</table></div>
+
+<h2>Fast removal: swap-and-pop</h2>
+<p>Removing from the middle of a list shifts every later element along. If order doesn't matter (bullets, particles), swap the item with the last one and remove the end instead:</p>
+<script type="text/x-code">
+  static void RemoveAtSwapBack<T>(List<T> list, int i)
+  {
+      var last = list.Count - 1;
+      list[i] = list[last];
+      list.RemoveAt(last);   // O(1)
+  }
+
+  // Iterate backwards when removing during a loop
+  for (var i = bullets.Count - 1; i >= 0; i--)
+      if (bullets[i].Life <= 0) RemoveAtSwapBack(bullets, i);
+</script>
+
+<h2>Span&lt;T&gt;: a window into memory</h2>
+<p><code>Span&lt;T&gt;</code> is a view over memory that is next to each other. That memory can be an array, part of an array, stack memory or native memory. A span is a tiny struct (a pointer plus a length) and it <b>never allocates</b>.</p>
+<script type="text/x-code">
+  var particles = new Particle[1000];
+
+  Span<Particle> alive = particles.AsSpan(0, aliveCount);   // view of the first N
+  foreach (ref var p in alive)                               // ref: edit in place
+  {
+      p.X += p.Vx * dt;
+      p.Life -= dt;
+  }
+
+  Span<int> temp = stackalloc int[64];                       // stack memory, zero GC
+  ReadOnlySpan<byte> title = "Coin Dash"u8;                  // UTF-8 bytes baked into the binary
+</script>
+<p>BRUTAL APIs use spans everywhere. <code>Mem.AllocZeroed&lt;int&gt;(…)</code> returns a span over native memory, <code>NativeList.AsSpan()</code> exposes the list, and <code>OpenGl.BufferData</code> accepts spans of vertices. If your code works with <code>Span&lt;T&gt;</code>, it works with all of them.</p>
+
+<div class="callout warn"><span class="t">SPAN RULES</span>
+<p>A <code>Span&lt;T&gt;</code> is a <code>ref struct</code>. It can only live on the stack, so you can't store it in a class field or capture it in a lambda. When you need to store a view, use <code>Memory&lt;T&gt;</code>, or keep the array and an offset.</p>
+</div>
+
+<h2>LINQ: when it's fine</h2>
+<script type="text/x-code">
+  // Great for tools, loading, menus:
+  var top3 = highScores.OrderByDescending(s => s.Points).Take(3).ToList();
+
+  // Avoid in per-frame code: allocates enumerators and closures every call
+  var nearby = enemies.Where(e => Dist(e, player) < 50).ToList();   // 60 times a second = garbage
+</script>
+
+<div class="exercise"><b>EXERCISE: OBJECT POOL</b>
+<p>Make a <code>BulletPool</code> with a fixed <code>Bullet[] _items</code> (struct) and an <code>int _count</code>. Add <code>Spawn(x, y, vx, vy)</code>, an <code>Update(dt)</code> that removes dead bullets with swap-and-pop, and a <code>ReadOnlySpan&lt;Bullet&gt; Alive</code> property. Spawn 100 bullets per second for 10 seconds and confirm zero allocations after start-up.</p>
+</div>
+</article>
+</body>
+</html>

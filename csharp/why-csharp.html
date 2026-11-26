@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Why C# for games? · GameGuy</title>
+<meta name="description" content="Why C# is one of the best languages for game development, and which parts of it matter for engines and frameworks like BRUTAL.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="/assets/js/lessons.js" defer></script>
+<script src="/assets/js/main.js" defer></script>
+</head>
+<body data-track="csharp" data-slug="why-csharp">
+<article class="lesson">
+<h1>Why C# for games?</h1>
+
+<p>C# runs Unity games, Godot's .NET mode, Stardew Valley (on MonoGame/FNA), Celeste, Terraria and now BRUTAL titles such as Kitten Space Agency and RimWorld's Waylith engine. It sits in a sweet spot:</p>
+<ul>
+  <li><b>Productive like a scripting language</b>: garbage collection, great tools, fast compile times and a huge standard library.</li>
+  <li><b>Fast like a systems language when you need it</b>: structs, <code>Span&lt;T&gt;</code>, <code>stackalloc</code>, pointers, SIMD and direct native interop.</li>
+  <li><b>Cross-platform</b>: .NET 10 runs on Windows, Linux and macOS, with Native AOT when you want it.</li>
+</ul>
+
+<h2>Two kinds of C#</h2>
+<p>Most tutorials teach "business C#", which is full of classes, LINQ, async and allocations everywhere. That's fine for tools and menus. Engine and gameplay hot paths use a different style:</p>
+<div class="table-wrap"><table>
+<tr><th>Business-style C#</th><th>Game/engine-style C#</th></tr>
+<tr><td><code>class</code> everything</td><td><code>struct</code> for small data (vectors, particles, components)</td></tr>
+<tr><td><code>List&lt;T&gt;</code> + LINQ</td><td>Arrays, <code>Span&lt;T&gt;</code> and <code>for</code> loops; LINQ outside hot paths</td></tr>
+<tr><td><code>string</code> concatenation</td><td>UTF-8 spans and pooled builders (BRUTAL's <code>String8</code>)</td></tr>
+<tr><td>Let the GC clean up</td><td>Avoid per-frame allocations, and dispose native resources deterministically</td></tr>
+<tr><td>Exceptions for control flow</td><td>Return values; exceptions only for truly exceptional failures</td></tr>
+</table></div>
+<p>This track teaches both, with a focus on the second style, because that's what you need to read and write BRUTAL code.</p>
+
+<h2>Track map</h2>
+<ol>
+  <li><a href="/csharp/setup">Setup</a>: .NET 10 and file-based apps (<code>dotnet run app.cs</code>)</li>
+  <li><a href="/csharp/basics">Basics</a>: types, variables and control flow</li>
+  <li><a href="/csharp/classes-structs">Classes, structs &amp; records</a>: the most important lesson for performance</li>
+  <li><a href="/csharp/collections">Collections &amp; Span</a></li>
+  <li><a href="/csharp/interfaces-generics">Interfaces &amp; generics</a></li>
+  <li><a href="/csharp/delegates-events">Delegates &amp; events</a>: how <code>window.OnKey</code> works</li>
+  <li><a href="/csharp/memory">The GC &amp; zero-allocation gameplay</a></li>
+  <li><a href="/csharp/disposal">IDisposable &amp; resource lifetime</a></li>
+  <li><a href="/csharp/unsafe-interop">Unsafe code &amp; native interop</a>: what BRUTAL does under the hood</li>
+</ol>
+
+<div class="callout tip"><span class="t">ALREADY KNOW ANOTHER LANGUAGE?</span>
+<p>If you know Java, TypeScript or C++, skim lessons 2–3 and slow down from lesson 4 on. If you're new to programming, do every exercise. Typing code yourself beats reading it.</p>
+</div>
+</article>
+</body>
+</html>

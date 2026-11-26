@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Scenes &amp; state stacks · GameGuy</title>
+<meta name="description" content="Organise a game into scenes (splash, title, gameplay, pause, credits) with a scene stack that supports overlays and transitions.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="/assets/js/lessons.js" defer></script>
+<script src="/assets/js/main.js" defer></script>
+</head>
+<body data-track="enginedev" data-slug="scenes">
+<article class="lesson">
+<h1>Scenes &amp; state stacks</h1>
+
+<p>Real games have screens: the BRUTAL logo splash, a title screen, gameplay, a pause menu <em>over</em> gameplay, game over and credits. A <b>scene stack</b> handles all of them cleanly.</p>
+
+<script type="text/x-code">
+  abstract class Scene
+  {
+      public SceneStack Stack = null!;
+      public virtual bool IsOverlay => false;      // true: the scene below keeps drawing
+      public virtual void Enter() { }
+      public virtual void Exit() { }
+      public abstract void Update(float dt);
+      public abstract void Draw();
+  }
+
+  sealed class SceneStack
+  {
+      private readonly List<Scene> _stack = [];
+      private readonly Queue<Action> _pending = new();       // never mutate mid-update
+
+      public void Push(Scene s)   => _pending.Enqueue(() => { s.Stack = this; _stack.Add(s); s.Enter(); });
+      public void Pop()           => _pending.Enqueue(() => { var s = _stack[^1]; s.Exit(); _stack.RemoveAt(_stack.Count - 1); });
+      public void Replace(Scene s){ Pop(); Push(s); }
+
+      public void Update(float dt)
+      {
+          if (_stack.Count > 0) _stack[^1].Update(dt);        // only the top scene updates
+          while (_pending.TryDequeue(out var op)) op();
+      }
+
+      public void Draw()
+      {
+          var first = _stack.Count - 1;                        // find the lowest visible scene
+          while (first > 0 && _stack[first].IsOverlay) first--;
+          for (var i = first; i < _stack.Count; i++) _stack[i].Draw();
+      }
+
+      public bool IsEmpty => _stack.Count == 0;
+  }
+</script>
+
+<h2>A typical flow</h2>
+<div class="diagram">
+<svg viewBox="0 0 660 120" font-family="Inter, sans-serif" font-size="13" fill="currentColor">
+  <g stroke="currentColor" stroke-width="2.5" fill="none"><rect x="5" y="40" width="110" height="40"/><rect x="140" y="40" width="90" height="40"/><rect x="255" y="40" width="110" height="40"/><rect x="390" y="40" width="110" height="40"/><rect x="525" y="40" width="130" height="40"/></g>
+  <g text-anchor="middle"><text x="60" y="65">BRUTAL splash</text><text x="185" y="65">Title</text><text x="310" y="65">Gameplay</text><text x="445" y="65">Pause (overlay)</text><text x="590" y="65">Credits</text></g>
+  <g font-size="11" text-anchor="middle" opacity=".75"><text x="127" y="30">replace</text><text x="242" y="30">replace</text><text x="377" y="30">push</text><text x="377" y="100">pop</text><text x="512" y="30">replace</text></g>
+  <g stroke="#e8483b" stroke-width="2.5"><path d="M117 60 h19"/><path d="M232 60 h19"/><path d="M367 55 h19"/><path d="M502 60 h19"/></g>
+  <path d="M388 68 h-19" stroke="#1f9d72" stroke-width="2.5"/>
+</svg>
+</div>
+<ul>
+  <li><b>Pause</b> is an overlay. Gameplay is still drawn underneath it but doesn't update, so the game freezes behind a dimmed menu for free.</li>
+  <li>Operations are <b>queued</b>, so a scene can safely <code>Pop()</code> itself during its own <code>Update</code>.</li>
+  <li>Transitions such as fades and wipes can be overlay scenes too.</li>
+</ul>
+
+<h2>Scene = data + systems</h2>
+<p>In bigger engines, a "scene" also owns a <em>world</em> (entities, physics world, audio sources). Loading a level means creating a new world, and leaving means disposing it. Because <code>Box2D.CreateWorld</code> is <code>IDisposable</code> and disposing it destroys all its bodies, a gameplay scene can hold the physics world and dispose it in <code>Exit()</code>.</p>
+
+<div class="exercise"><b>EXERCISE</b>
+<p>Refactor <a href="/brutal/capstone">Coin Dash</a> into <code>SplashScene</code> (2 s logo text, as required by the <a href="/brutal/shipping">BRUTAL license</a>), <code>TitleScene</code>, <code>PlayScene</code>, <code>PauseScene</code> (overlay, <kbd>Esc</kbd>) and <code>WinScene</code>.</p>
+</div>
+</article>
+</body>
+</html>

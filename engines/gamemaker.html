@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GameMaker · GameGuy</title>
+<meta name="description" content="An overview of GameMaker (objects, events, rooms and GML) for fast 2D development, compared with BRUTAL.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="/assets/js/lessons.js" defer></script>
+<script src="/assets/js/main.js" defer></script>
+</head>
+<body data-track="engines" data-slug="gamemaker">
+<article class="lesson">
+<h1>GameMaker</h1>
+
+<div class="table-wrap"><table>
+<tr><th>License</th><td>Proprietary. Free for non-commercial use, with paid licences for commercial and console releases. Check current terms on gamemaker.io.</td></tr>
+<tr><th>Language</th><td>GML (GameMaker Language), a C-like scripting language, or visual GML</td></tr>
+<tr><th>Strengths</th><td>Extremely fast 2D workflow, built-in sprite editor, a long track record of hit indie games</td></tr>
+<tr><th>Platforms</th><td>Desktop, mobile, Web and consoles</td></tr>
+</table></div>
+
+<h2>Mental model: objects, events, rooms</h2>
+<ul>
+  <li><b>Sprites</b>: images and animations, made in the built-in editor or imported.</li>
+  <li><b>Objects</b>: blueprints with <b>events</b> (Create, Step, Draw, Collision with X, Key Pressed…).</li>
+  <li><b>Rooms</b>: levels where you place object instances and tile layers.</li>
+</ul>
+
+<h2>A Step event</h2>
+<script type="text/x-code" data-lang="clike" data-file="obj_player: Step">
+  var move = keyboard_check(vk_right) - keyboard_check(vk_left);
+  hsp = move * 2;
+  vsp += 0.4;                                        // gravity, per step
+
+  if (place_meeting(x, y + 1, obj_wall) && keyboard_check_pressed(vk_space)) vsp = -7;
+
+  // Horizontal collision: step pixel by pixel until touching
+  if (place_meeting(x + hsp, y, obj_wall)) {
+      while (!place_meeting(x + sign(hsp), y, obj_wall)) x += sign(hsp);
+      hsp = 0;
+  }
+  x += hsp;
+  // ...same for vertical
+</script>
+<p>Look familiar? It's the <b>axis-separated collision</b> from <a href="/brutal/capstone">Coin Dash</a>. GameMaker games traditionally run at a fixed room speed (e.g. 60 steps per second), so values are "per step" rather than "per second".</p>
+
+<h2>GameMaker vs BRUTAL</h2>
+<div class="table-wrap"><table>
+<tr><th></th><th>GameMaker</th><th>BRUTAL</th></tr>
+<tr><td>Focus</td><td>2D, fast iteration</td><td>Anything, built from parts</td></tr>
+<tr><td>Art pipeline</td><td>Built-in sprite and tile editors</td><td>External tools (try the <a href="/pixel/editor">GameGuy editor</a>)</td></tr>
+<tr><td>Language</td><td>GML</td><td>Modern C#</td></tr>
+<tr><td>Best for</td><td>Solo devs and artists shipping 2D games fast</td><td>Programmers building engines and systems-heavy games</td></tr>
+</table></div>
+</article>
+</body>
+</html>

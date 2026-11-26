@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Asset pipeline &amp; resource handles · GameGuy</title>
+<meta name="description" content="Load, cache and reference game assets with handles, add hot reload, and move expensive conversion into a build-time pipeline.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="/assets/js/lessons.js" defer></script>
+<script src="/assets/js/main.js" defer></script>
+</head>
+<body data-track="enginedev" data-slug="assets">
+<article class="lesson">
+<h1>Asset pipeline &amp; resource handles</h1>
+
+<h2>Two halves</h2>
+<ul>
+  <li><b>Offline (the pipeline)</b>: converts source files (<code>.aseprite</code>, <code>.png</code>, <code>.wav</code>, <code>.gltf</code>) into runtime-friendly formats such as compressed textures, packed atlases and optimised meshes. BRUTAL has the building blocks: <code>Ktx</code> for GPU textures, <code>MeshOptimizer</code>, <code>ShaderC</code>/<code>Slang</code> to precompile shaders, and <code>ZLib</code>.</li>
+  <li><b>Runtime (the resource manager)</b>: loads assets on demand, avoids loading the same file twice, and hands out <b>handles</b>.</li>
+</ul>
+
+<h2>Why handles instead of references?</h2>
+<script type="text/x-code">
+  readonly record struct TextureHandle(int Index, int Generation);
+
+  sealed class TextureCache : IDisposable
+  {
+      private readonly List<(GlTexture Tex, int Gen, string Path)> _slots = [];
+      private readonly Dictionary<string, TextureHandle> _byPath = [];
+
+      public TextureHandle Load(string path)
+      {
+          if (_byPath.TryGetValue(path, out var h)) return h;    // dedupe
+          var tex = LoadFromDisk(path);
+          _slots.Add((tex, 1, path));
+          return _byPath[path] = new TextureHandle(_slots.Count - 1, 1);
+      }
+
+      public GlTexture Get(TextureHandle h) =>
+          _slots[h.Index].Gen == h.Generation ? _slots[h.Index].Tex : Fallback;   // stale handle -> pink checker
+
+      public void Reload(string path)                            // hot reload!
+      {
+          var h = _byPath[path];
+          var old = _slots[h.Index];
+          Delete(old.Tex);
+          _slots[h.Index] = (LoadFromDisk(path), old.Gen, path);  // same handle, new pixels
+      }
+
+      public void Dispose() { foreach (var s in _slots) Delete(s.Tex); }
+  }
+</script>
+<ul>
+  <li>A handle is a small, copyable value, so it fits inside an ECS component struct.</li>
+  <li>The cache can <b>swap the underlying data</b> (hot reload, streaming, quality levels) without anyone else noticing.</li>
+  <li>The <b>generation</b> counter catches use-after-free: a handle to a freed slot no longer matches.</li>
+</ul>
+
+<h2>Hot reload</h2>
+<script type="text/x-code">
+  var watcher = new FileSystemWatcher("assets") { IncludeSubdirectories = true, EnableRaisingEvents = true };
+  var changed = new System.Collections.Concurrent.ConcurrentQueue<string>();
+  watcher.Changed += (_, e) => changed.Enqueue(e.FullPath);   // runs on a worker thread!
+
+  // In the main loop (GPU calls must happen on the main thread):
+  while (changed.TryDequeue(out var path))
+      textures.Reload(path);
+</script>
+<p>Save a sprite in your pixel editor and see it change in the running game. Hot reload makes iteration much faster.</p>
+
+<h2>Loading screens and async</h2>
+<p>Do file reading and decoding (<code>Brutal.Stb</code>, <code>Brutal.Texture</code>) on worker threads, then upload to the GPU on the main thread. A loading screen is simply a scene that keeps rendering while this queue drains.</p>
+
+<div class="exercise"><b>EXERCISE</b>
+<p>Make <code>TextureCache</code> hot-reload PNGs for the <a href="/brutal/capstone">Coin Dash</a> SDL version (use <code>SdlImage.LoadTexture</code>). Then add a fallback magenta-and-black checker texture for missing files, so the game never crashes on a missing asset.</p>
+</div>
+</article>
+</body>
+</html>

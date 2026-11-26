@@ -1,0 +1,50 @@
+---
+title: Engine vs framework vs library
+description: What the differences between a game engine, a framework and a library mean for control, productivity and lock-in.
+---
+<article class="lesson">
+<h1>Engine vs framework vs library</h1>
+
+<div class="objectives"><b>You will learn</b>
+<ul>
+  <li>The "who calls whom" test (inversion of control)</li>
+  <li>Where Unity, Godot, GameMaker, MonoGame and BRUTAL sit on the spectrum</li>
+  <li>Why studios build their own engines, and why most of them shouldn't</li>
+</ul></div>
+
+<h2>The "who calls whom" test</h2>
+<div class="table-wrap"><table>
+<tr><th></th><th>Library</th><th>Framework</th><th>Engine</th></tr>
+<tr><td><b>Who owns <code>main()</code> and the loop?</b></td><td>You</td><td>You (or a thin base class)</td><td>The engine</td></tr>
+<tr><td><b>How do you add behaviour?</b></td><td>Call functions</td><td>Compose packages, sometimes override hooks</td><td>Attach scripts to engine objects</td></tr>
+<tr><td><b>Editor?</b></td><td>No</td><td>Usually no</td><td>Yes: scenes, assets, inspector</td></tr>
+<tr><td><b>Examples</b></td><td>GLFW, SDL, Box2D, stb_image</td><td>BRUTAL, MonoGame/FNA, raylib, LÖVE</td><td>Unity, Godot, Unreal, GameMaker</td></tr>
+</table></div>
+
+<p><b>BRUTAL</b> is a framework built out of libraries. Each package (<code>Brutal.Box2D</code>, <code>Brutal.Glfw</code>…) is close to a plain library, and BRUTAL as a whole is the curated, consistent set. Its maintainers say they won't add an editor, a scene graph or a renderer, because <em>that</em> layer is what you, or a studio like Ludeon with Waylith, build on top.</p>
+
+<h2>Trade-offs</h2>
+<div class="table-wrap"><table>
+<tr><th></th><th>Engine</th><th>Framework</th></tr>
+<tr><td>Time to first prototype</td><td>⭐⭐⭐ fast</td><td>⭐ slower</td></tr>
+<tr><td>Control over performance</td><td>⭐ limited by engine design</td><td>⭐⭐⭐ total</td></tr>
+<tr><td>Learning how games work</td><td>⭐ hidden</td><td>⭐⭐⭐ explicit</td></tr>
+<tr><td>Lock-in risk (pricing, license changes)</td><td>High</td><td>Low (you own the code)</td></tr>
+<tr><td>Team with non-programmers</td><td>⭐⭐⭐ editor-friendly</td><td>⭐ you must build tools</td></tr>
+<tr><td>Porting a long-lived game</td><td>Hard</td><td>Easier, since you control every layer</td></tr>
+</table></div>
+
+<h2>Why build your own engine layer?</h2>
+<ul>
+  <li><b>The game is unusual</b>: huge simulations (RimWorld, Factorio), voxel worlds, orbital physics (Kitten Space Agency).</li>
+  <li><b>Longevity</b>: a game supported for 10+ years can't depend on another company's roadmap.</li>
+  <li><b>Performance</b>: data layouts designed for <em>your</em> game.</li>
+  <li><b>Learning</b>: there's no better way to understand engines than to build one.</li>
+</ul>
+<div class="callout warn"><span class="t">THE TRAP</span>
+<p>"I'll build an engine and then make my game" usually ends with an engine and no game. The healthy approach is to <b>build the game, then pull the engine out of it</b>. Write only what this game needs, and only generalise code once you've needed it twice.</p>
+</div>
+
+<h2>This track</h2>
+<p>The following lessons explain each layer of an engine with small, readable C# examples. Many build on BRUTAL packages, and the last one has you assemble a <a href="/enginedev/mini-engine">mini engine</a>.</p>
+</article>

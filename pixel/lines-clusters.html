@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lines, clusters &amp; readability · GameGuy</title>
+<meta name="description" content="Draw clean pixel lines, avoid jaggies and orphan pixels, and make sprites readable at small sizes with silhouettes and outlines.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="/assets/js/lessons.js" defer></script>
+<script src="/assets/js/main.js" defer></script>
+</head>
+<body data-track="pixel" data-slug="lines-clusters">
+<article class="lesson">
+<h1>Lines, clusters &amp; readability</h1>
+
+<h2>Clean lines follow a pattern</h2>
+<p>A pixel line looks smooth when its segments follow a consistent pattern (1-1-1, 2-2-2, 1-2-1-2…). Breaking the pattern creates <b>jaggies</b>: visible bumps that pull the eye.</p>
+<div class="art-row">
+  <figure><canvas data-art="kk..........|..kk........|....kk......|......kk....|........kk..|..........kk" data-pal='{"k":"#1d1b26"}' data-scale="16"></canvas><figcaption>✓ Consistent 2:1 steps</figcaption></figure>
+  <figure><canvas data-art="kk..........|..k.........|...kkk......|......k.....|.......kk...|.........kkk" data-pal='{"k":"#e8483b"}' data-scale="16"></canvas><figcaption>✗ Jaggies: 2, 1, 3, 1, 2, 3</figcaption></figure>
+</div>
+<p>For curves, step lengths should change <b>gradually</b>: 3-2-1-1-2-3, not 3-1-3.</p>
+
+<h2>Avoid doubles and orphans</h2>
+<ul>
+  <li><b>Doubles</b>: L-shaped corners in a 1-pixel line make it look thick in places. Remove the inside corner pixel.</li>
+  <li><b>Orphan pixels</b>: single stray pixels of a colour read as noise. Group colours into <b>clusters</b>, connected areas that read as one shape or material.</li>
+</ul>
+<div class="art-row">
+  <figure><canvas data-art="k.......|kk......|.kk.....|..kk....|...kk...|....kk..|.....kk.|......kk" data-pal='{"k":"#e8483b"}' data-scale="16"></canvas><figcaption>✗ Doubled corners: thick and blurry</figcaption></figure>
+  <figure><canvas data-art="k.......|.k......|..k.....|...k....|....k...|.....k..|......k.|.......k" data-pal='{"k":"#1d1b26"}' data-scale="16"></canvas><figcaption>✓ Single-pixel diagonal</figcaption></figure>
+</div>
+
+<h2>Readability first</h2>
+<ol>
+  <li><b>Silhouette</b>: fill your sprite with solid black. Can you still tell what it is? If not, change the shape before you add detail.</li>
+  <li><b>Outlines</b>: a dark outline separates the sprite from busy backgrounds. A <em>selective</em> outline (lighter on the lit side) looks softer.</li>
+  <li><b>Contrast</b>: the player character should stand out more than anything else on screen.</li>
+  <li><b>Exaggeration</b>: heads, hands and weapons are often drawn bigger, so they read at 16 px.</li>
+</ol>
+
+<div class="exercise"><b>EXERCISE</b>
+<p>Draw a 16×16 sword at 45°, then at 30° (a 2:1 line). Check every line for jaggies and doubles. Then draw a 16×16 character silhouette that's recognisable when filled with a single colour.</p>
+</div>
+</article>
+</body>
+</html>

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Unity · GameGuy</title>
+<meta name="description" content="An overview of Unity (GameObjects, components and C# MonoBehaviours), with a first script and a comparison with BRUTAL.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="/assets/js/lessons.js" defer></script>
+<script src="/assets/js/main.js" defer></script>
+</head>
+<body data-track="engines" data-slug="unity">
+<article class="lesson">
+<h1>Unity</h1>
+
+<div class="table-wrap"><table>
+<tr><th>License</th><td>Proprietary, with free and paid tiers. Terms have changed over the years, so check the current plans on unity.com before committing to it.</td></tr>
+<tr><th>Language</th><td>C#</td></tr>
+<tr><th>Strengths</th><td>Huge ecosystem and asset store, mobile and console reach, tutorials everywhere, job system + Burst + ECS (DOTS)</td></tr>
+<tr><th>Platforms</th><td>Very broad: desktop, mobile, consoles, XR and Web</td></tr>
+</table></div>
+
+<h2>Mental model: GameObjects and components</h2>
+<p>A scene contains <b>GameObjects</b>. Each one gets its behaviour from attached <b>components</b>: <code>Transform</code>, <code>SpriteRenderer</code>, <code>Rigidbody2D</code> and your own <code>MonoBehaviour</code> scripts. This is the component-composition model from <a href="/enginedev/entities">Entities</a>. Unity's DOTS adds a true ECS for high-performance work.</p>
+
+<h2>A first script</h2>
+<script type="text/x-code" data-file="PlayerMove.cs">
+  using UnityEngine;
+
+  [RequireComponent(typeof(Rigidbody2D))]
+  public class PlayerMove : MonoBehaviour
+  {
+      [SerializeField] float speed = 6f;
+      [SerializeField] float jumpSpeed = 12f;
+      Rigidbody2D _rb;
+      bool _jumpQueued;
+
+      void Awake() => _rb = GetComponent<Rigidbody2D>();
+
+      void Update()                                   // every rendered frame: read input
+      {
+          if (Input.GetButtonDown("Jump")) _jumpQueued = true;
+      }
+
+      void FixedUpdate()                              // fixed timestep: apply physics
+      {
+          var v = _rb.linearVelocity;
+          v.x = Input.GetAxisRaw("Horizontal") * speed;
+          if (_jumpQueued) { v.y = jumpSpeed; _jumpQueued = false; }
+          _rb.linearVelocity = v;
+      }
+  }
+</script>
+<p>Notice the split between <code>Update</code> and <code>FixedUpdate</code>, and the queued jump. It's the same problem as reading input once per frame while the simulation runs in fixed steps, which you solved with a jump buffer in Coin Dash.</p>
+
+<h2>Unity vs BRUTAL</h2>
+<div class="table-wrap"><table>
+<tr><th></th><th>Unity</th><th>BRUTAL</th></tr>
+<tr><td>Editor &amp; tools</td><td>Industry-standard editor</td><td>Build your own</td></tr>
+<tr><td>Runtime</td><td>Unity's own scripting runtime (IL2CPP for builds)</td><td>Modern .NET 10, with Native AOT optional</td></tr>
+<tr><td>Ownership</td><td>Vendor-controlled roadmap and terms</td><td>Open source; you own your stack</td></tr>
+<tr><td>Famous migration</td><td colspan="2">Ludeon moved RimWorld's engine onto BRUTAL (Waylith) for long-term control.</td></tr>
+</table></div>
+<p>C# skills carry over between them. Everything in the <a href="/csharp/">C# track</a> applies to Unity too, especially the <a href="/csharp/memory">allocation</a> lessons.</p>
+</article>
+</body>
+</html>

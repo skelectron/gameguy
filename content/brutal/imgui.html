@@ -1,0 +1,113 @@
+---
+title: Debug UI with Dear ImGui
+description: Add Dear ImGui to a BRUTAL game for tweakable debug panels, using the GLFW and OpenGL backends and allocation-free UTF-8 strings.
+---
+<article class="lesson">
+<h1>Debug UI with Dear ImGui</h1>
+
+<div class="objectives"><b>You will learn</b>
+<ul>
+  <li>What "immediate-mode" UI means and why engine developers love it</li>
+  <li>How to wire up the GLFW and OpenGL backends from <code>Brutal.ImGui.Backends</code></li>
+  <li>How to reset the frame's string storage so the game doesn't run out of memory</li>
+  <li>How to build a live "tweak panel" for gameplay values</li>
+</ul></div>
+
+<p><b>Dear ImGui</b> is how most studios build in-game debug tools and editors. There are no widget objects to manage. Every frame you just <em>describe</em> the UI in code:</p>
+<script type="text/x-code">
+  if (ImGui.Button("Spawn enemy"u8))
+      SpawnEnemy();
+  ImGui.SliderFloat("Gravity"u8, ref gravity, 0f, 50f);
+</script>
+<p>If the button was clicked this frame, <code>Button</code> returns <code>true</code>. The slider writes straight into your variable. That's the whole model.</p>
+
+<h2>Setup</h2>
+<script type="text/x-code" data-file="DebugUi.cs (setup, see samples/Hello/HelloImGui.cs)">
+  #:property AllowUnsafeBlocks=true
+  #:package Ahwoo.Brutal.ImGui@2026.10.3
+  #:package Ahwoo.Brutal.ImGui.Backends@2026.10.3
+  #:package Ahwoo.Brutal.Core@2026.10.4
+  #:package Ahwoo.Brutal.Glfw@2026.10.5
+  #:package Ahwoo.Brutal.Numerics@2026.10.2
+  #:package Ahwoo.Brutal.OpenGl@2026.10.2
+
+  using Brutal;
+  using Brutal.GlfwApi;
+  using Brutal.ImGuiApi;
+  using Brutal.ImGuiApi.Backends;
+  using Brutal.Numerics;
+  using Brutal.OpenGlApi;
+
+  Glfw.Init();
+  var context = ImGui.CreateContext();
+  try { Run(); }
+  finally
+  {
+      ImGui.DestroyContext(context);
+      Glfw.Terminate();
+  }
+
+  // In Run(): create the GL window exactly as in the OpenGL lesson, then:
+  //   ImGui.GetIO().IniFilename = null;              // don't write imgui.ini
+  //   using var glfwBackend = new GlfwBackend(window, GlfwBackend.ClientApi.OpenGL);
+  //   using var openGlBackend = new OpenGlBackend();
+</script>
+
+<h2>The per-frame pattern</h2>
+<script type="text/x-code">
+  var gravity = 9.8f;
+  var showHitboxes = false;
+  var spawnCount = 0;
+  var lastTime = Glfw.Time;
+  var fps = 0.0;
+
+  while (!window.ShouldClose)
+  {
+      Glfw.PollEvents();
+      var now = Glfw.Time;
+      fps = fps * 0.95 + (1.0 / Math.Max(now - lastTime, 1e-6)) * 0.05;   // smoothed
+      lastTime = now;
+
+      glfwBackend.NewFrame();
+      openGlBackend.NewFrame();
+      ImGui.NewFrame();
+      ImString.SharedStorage.Reset();   // IMPORTANT: once per frame (see below)
+
+      ImGui.SetNextWindowSize(new float2(320, 180), ImGuiCond.FirstUseEver);
+      if (ImGui.Begin("Tweaks"u8))
+      {
+          ImGui.Text($"FPS: {fps:F0}");
+          ImGui.SliderFloat("Gravity"u8, ref gravity, 0f, 50f);
+          ImGui.Checkbox("Show hitboxes"u8, ref showHitboxes);
+          if (ImGui.Button("Spawn"u8))
+              spawnCount++;
+          ImGui.SameLine();
+          ImGui.Text($"spawned {spawnCount}");
+      }
+      ImGui.End();
+
+      ImGui.Render();
+
+      OpenGl.Clear(GlClearBit.Color);
+      // ... draw your game here ...
+      openGlBackend.RenderDrawData(ImGui.GetDrawData());   // UI on top
+      window.SwapBuffers();
+  }
+</script>
+
+<div class="callout brutal"><span class="t">DON'T SKIP SHAREDSTORAGE.RESET()</span>
+<p>Interpolated strings passed to ImGui (<code>$"spawned {spawnCount}"</code>) are formatted into a shared scratch buffer, so they don't allocate. The maintainers warn: the shared storage "will OoM eventually if you don't" reset it. Call <code>ImString.SharedStorage.Reset()</code> once per frame, right after <code>ImGui.NewFrame()</code>.</p>
+</div>
+
+<h2>Uses beyond debugging</h2>
+<ul>
+  <li><b>Level editors</b>: ImGui's docking branch, which BRUTAL binds, can build a full editor layout.</li>
+  <li><b>Graphs</b>: <code>Brutal.ImPlot</code> for frame-time graphs and economy curves.</li>
+  <li><b>Nicer fonts</b>: <code>Brutal.ImGui.FreeType</code> (see <code>DemoImGui.cs</code>).</li>
+  <li><b>GPU captures</b>: <code>Brutal.RenderDoc.ImGui</code> adds a "capture frame" button.</li>
+</ul>
+
+<div class="exercise"><b>EXERCISE</b>
+<p>Combine this lesson with the <a href="/brutal/game-loop">game loop</a>: show the player's position and velocity, and add sliders for <code>ACCEL</code>, <code>MAX_SPEED</code> and <code>FRICTION</code> (make them fields, not consts). Tune the movement until it feels good, then copy the values back into code. This is how real game feel gets made. See <a href="/design/game-feel">Game feel &amp; juice</a>.</p>
+</div>
+</article>

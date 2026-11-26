@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The main loop &amp; fixed timestep · GameGuy</title>
+<meta name="description" content="Variable, fixed and semi-fixed timesteps explained with a live demo, plus interpolation and the spiral of death.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="/assets/js/lessons.js" defer></script>
+<script src="/assets/js/main.js" defer></script>
+</head>
+<body data-track="enginedev" data-slug="main-loop">
+<article class="lesson">
+<h1>The main loop &amp; fixed timestep</h1>
+
+<div class="objectives"><b>You will learn</b>
+<ul>
+  <li>Three ways to advance time, and why engines prefer fixed steps</li>
+  <li>The accumulator, the spiral of death, and how to clamp it</li>
+  <li>How to render between steps with interpolation</li>
+</ul></div>
+
+<h2>Three strategies</h2>
+<div class="table-wrap"><table>
+<tr><th>Strategy</th><th>Update call</th><th>Pros</th><th>Cons</th></tr>
+<tr><td><b>Variable</b></td><td><code>Update(realDt)</code></td><td>Simple; always smooth</td><td>Physics differs per frame rate; lag spikes cause tunnelling; not reproducible</td></tr>
+<tr><td><b>Fixed (locked)</b></td><td><code>Update(1/60)</code> once per frame</td><td>Deterministic</td><td>The game runs in slow motion on slow machines and too fast at 144 Hz</td></tr>
+<tr><td><b>Fixed + accumulator</b></td><td><code>Update(1/60)</code> 0..N times per frame</td><td>Deterministic <em>and</em> runs at real speed</td><td>Needs interpolation to look smooth on high-refresh screens</td></tr>
+</table></div>
+
+<h2>Live demo</h2>
+<p>Each ball is thrown with the same starting velocity. Lower the <em>render FPS</em> or add lag spikes and watch the <b style="color:#e8483b">variable-dt</b> ball. Its arc and peak height change, and it can fall through the floor. The <b style="color:#5fd39c">fixed-step</b> ball always follows the same path.</p>
+<div class="demo">
+  <canvas id="loopdemo" width="640" height="300" aria-label="Demo comparing variable and fixed timestep trajectories"></canvas>
+  <div class="controls">
+    <label>Render FPS <input type="range" id="fps" min="5" max="144" value="60"> <span id="fpsv">60</span></label>
+    <label><input type="checkbox" id="spikes"> Lag spikes</label>
+    <label><input type="checkbox" id="interp" checked> Interpolate fixed</label>
+    <button class="icon-btn" id="throw" type="button">Throw again</button>
+  </div>
+</div>
+
+<h2>The canonical loop</h2>
+<script type="text/x-code">
+  const double STEP = 1.0 / 60.0;
+  double accumulator = 0, previous = Now();
+  State prev = state, curr = state;
+
+  while (running)
+  {
+      var now = Now();
+      var frame = Math.Min(now - previous, 0.25);   // clamp: avoid the spiral of death
+      previous = now;
+      accumulator += frame;
+
+      PollInput();
+      while (accumulator >= STEP)
+      {
+          prev = curr;
+          curr = Simulate(curr, STEP);              // deterministic step
+          accumulator -= STEP;
+      }
+
+      var alpha = accumulator / STEP;               // 0..1 between prev and curr
+      Render(Lerp(prev, curr, alpha));
+  }
+</script>
+
+<h3>The spiral of death</h3>
+<p>If one simulation step takes <em>longer</em> than <code>STEP</code>, every frame needs more steps than the last. The frame gets slower, it needs even more steps, and the game locks up. Clamping <code>frame</code> to 0.25 s means the game slows down instead of freezing. If this happens regularly, your simulation is too expensive for your step rate.</p>
+
+<h3>Interpolation</h3>
+<p>At 144 Hz with 60 Hz updates, some frames have no update at all, so without interpolation objects stutter. Rendering <code>Lerp(prev, curr, alpha)</code> shows a smooth position that runs up to one step behind the simulation, which is too little to feel. Toggle "Interpolate fixed" in the demo at a high FPS with a low step rate to see the difference. For pixel-art games, round the interpolated position to whole pixels at draw time.</p>
+
+<h2>Where things go</h2>
+<ul>
+  <li><b>Inside the fixed step:</b> physics, gameplay rules, AI, anything that should be deterministic.</li>
+  <li><b>Once per frame:</b> polling OS events, rendering, UI, audio mixing, camera smoothing that's purely visual.</li>
+  <li><b>Input:</b> sample once per frame. Make sure a "just pressed" event is consumed by exactly one step (the jump buffer in <a href="/brutal/capstone">Coin Dash</a> does this neatly).</li>
+</ul>
+
+<div class="exercise"><b>EXERCISE</b>
+<p>Implement the canonical loop in BRUTAL with <code>Glfw.Time</code>, and add an ImGui slider that changes <code>STEP</code> between 1/10 and 1/240 at runtime. Show the steps per frame as a graph with <code>Brutal.ImPlot</code>.</p>
+</div>
+</article>
+
+<script>
+(function () {
+  var c = document.getElementById("loopdemo"), g = c.getContext("2d");
+  var W = 640, H = 300, FLOOR = 270, G = 900, V0 = { x: 140, y: -560 };
+  var fpsEl = document.getElementById("fps"), fpsv = document.getElementById("fpsv");
+  var spikes = document.getElementById("spikes"), interp = document.getElementById("interp");
+  var varBall, fixBall, prevFix, acc, trailV, trailF, lastRender, simTime;
+  function reset() {
+    varBall = { x: 40, y: FLOOR - 1, vx: V0.x, vy: V0.y, dead: false };
+    fixBall = { x: 40, y: FLOOR - 1, vx: V0.x, vy: V0.y };
+    prevFix = { x: fixBall.x, y: fixBall.y }; acc = 0; trailV = []; trailF = []; simTime = 0;
+  }
+  function stepBall(b, dt, thinFloor) {
+    b.vy += G * dt; b.x += b.vx * dt; b.y += b.vy * dt;
+    // Thin floor: only collides if the ball ends the step within 12px of it (so big dt tunnels through).
+    if (b.y >= FLOOR && b.y < FLOOR + 12 && b.vy > 0) { b.y = FLOOR; b.vy *= -0.6; b.vx *= 0.9; if (Math.abs(b.vy) < 40) b.vy = 0; }
+    if (b.y > H + 40) b.dead = true;
+  }
+  function draw(fx, fy) {
+    g.fillStyle = "#1d1b26"; g.fillRect(0, 0, W, H);
+    g.fillStyle = "#3a3650"; g.fillRect(0, FLOOR + 6, W, 3);
+    g.fillStyle = "#a6a2b8"; g.font = "12px monospace"; g.fillText("thin floor (12px thick)", 10, FLOOR + 24);
+    trailV.forEach(function (p) { g.fillStyle = "rgba(232,72,59,.45)"; g.fillRect(p[0] - 1, p[1] - 1, 3, 3); });
+    trailF.forEach(function (p) { g.fillStyle = "rgba(95,211,156,.45)"; g.fillRect(p[0] - 1, p[1] - 1, 3, 3); });
+    g.fillStyle = "#e8483b"; g.fillRect(varBall.x - 6, varBall.y - 6, 12, 12);
+    g.fillStyle = "#5fd39c"; g.fillRect(fx - 6, fy - 6, 12, 12);
+    g.fillStyle = "#ece9f5"; g.fillText("variable dt" + (varBall.dead ? "  (fell through!)" : ""), 10, 18);
+    g.fillStyle = "#5fd39c"; g.fillText("fixed 1/60 + accumulator", 10, 34);
+  }
+  var STEP = 1 / 60;
+  function tick(now) {
+    var target = 1000 / +fpsEl.value;
+    if (lastRender == null) lastRender = now;
+    if (now - lastRender >= target - 1) {
+      var dt = (now - lastRender) / 1000; lastRender = now;
+      if (spikes.checked && Math.random() < 0.06) dt += 0.12 + Math.random() * 0.1;
+      dt = Math.min(dt, 0.25);
+      simTime += dt;
+      if (!varBall.dead) { stepBall(varBall, dt); trailV.push([varBall.x, varBall.y]); }
+      acc += dt;
+      while (acc >= STEP) { prevFix = { x: fixBall.x, y: fixBall.y }; stepBall(fixBall, STEP); acc -= STEP; trailF.push([fixBall.x, fixBall.y]); }
+      var a = interp.checked ? acc / STEP : 1;
+      draw(prevFix.x + (fixBall.x - prevFix.x) * a, prevFix.y + (fixBall.y - prevFix.y) * a);
+      if (fixBall.x > W + 20 || simTime > 8) reset();
+    }
+    requestAnimationFrame(tick);
+  }
+  fpsEl.addEventListener("input", function () { fpsv.textContent = fpsEl.value; reset(); });
+  spikes.addEventListener("change", reset);
+  document.getElementById("throw").addEventListener("click", reset);
+  reset(); requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

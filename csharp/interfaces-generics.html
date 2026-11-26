@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Interfaces, generics &amp; inheritance · GameGuy</title>
+<meta name="description" content="Design flexible game systems in C# with interfaces, generics with constraints, and inheritance used sparingly.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="/assets/js/lessons.js" defer></script>
+<script src="/assets/js/main.js" defer></script>
+</head>
+<body data-track="csharp" data-slug="interfaces-generics">
+<article class="lesson">
+<h1>Interfaces, generics &amp; inheritance</h1>
+
+<h2>Interfaces: "can do" contracts</h2>
+<script type="text/x-code">
+  interface IDamageable
+  {
+      int Hp { get; }
+      void TakeDamage(int amount);
+  }
+
+  sealed class Crate : IDamageable
+  {
+      public int Hp { get; private set; } = 3;
+      public void TakeDamage(int amount) => Hp -= amount;
+  }
+
+  sealed class Boss : IDamageable
+  {
+      public int Hp { get; private set; } = 500;
+      public void TakeDamage(int amount) => Hp -= Math.Max(0, amount - 5);   // armour
+  }
+
+  // The explosion doesn't care WHAT it hits, only that it can be damaged.
+  static void Explode(IEnumerable<IDamageable> targets) { foreach (var t in targets) t.TakeDamage(20); }
+</script>
+<p>You've already used one: <code>IJob</code> from BRUTAL's job system is an interface with a single <code>Run()</code> method. The scheduler can run <em>any</em> class that implements it.</p>
+
+<h2>Inheritance: use sparingly</h2>
+<script type="text/x-code">
+  abstract class Scene
+  {
+      public virtual void Enter() { }
+      public abstract void Update(float dt);
+      public abstract void Draw();
+  }
+
+  sealed class TitleScene : Scene
+  {
+      public override void Update(float dt) { /* wait for Start */ }
+      public override void Draw() { /* draw logo */ }
+  }
+</script>
+<div class="callout warn"><span class="t">THE DEEP HIERARCHY TRAP</span>
+<p><code>Entity → Character → Enemy → FlyingEnemy → FlyingShootingEnemy</code>… and then design asks for a <em>swimming</em> shooting enemy. Deep inheritance trees break down quickly in games. Prefer <b>composition</b>, where an entity <em>has</em> components, and keep inheritance one level deep, for things like scenes or states. See <a href="/enginedev/entities">Entities: OOP, components &amp; ECS</a>.</p>
+</div>
+
+<h2>Generics: write it once, type-safe</h2>
+<script type="text/x-code">
+  sealed class Pool<T> where T : struct          // constraint: value types only
+  {
+      private readonly T[] _items;
+      private int _count;
+      public Pool(int capacity) => _items = new T[capacity];
+      public ref T Add() => ref _items[_count++];
+      public Span<T> Alive => _items.AsSpan(0, _count);
+  }
+
+  var particles = new Pool<Particle>(4096);
+  ref var p = ref particles.Add();
+  p.Life = 1f;
+</script>
+<p>Common constraints are <code>where T : struct</code>, <code>class</code>, <code>unmanaged</code> (no references inside, so it's safe to copy to native memory), <code>new()</code>, and <code>ISomeInterface</code>. BRUTAL's <code>NativeList&lt;T&gt;</code> and <code>Mem.AllocZeroed&lt;T&gt;</code> need <code>unmanaged</code> types, because native memory can't hold GC references.</p>
+
+<h2>Static abstract interface members (generic math)</h2>
+<script type="text/x-code">
+  using System.Numerics;
+
+  static T Lerp<T>(T a, T b, T t) where T : IFloatingPointIeee754<T> => a + (b - a) * t;
+
+  Lerp(0f, 10f, 0.25f);    // float
+  Lerp(0.0, 10.0, 0.25);   // double
+</script>
+
+<div class="exercise"><b>EXERCISE</b>
+<p>Make <code>interface IState { void Enter(); void Update(float dt); void Exit(); }</code> and a <code>StateMachine</code> class with <code>Change(IState next)</code>. Implement <code>Idle</code>, <code>Run</code> and <code>Jump</code> states for a player that print when they enter and exit.</p>
+</div>
+</article>
+</body>
+</html>

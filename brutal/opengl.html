@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Drawing with OpenGL · GameGuy</title>
+<meta name="description" content="Create an OpenGL 4.1 context with Brutal.Glfw, load it with GLAD, compile shaders and draw a triangle with Brutal.OpenGl.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="/assets/js/lessons.js" defer></script>
+<script src="/assets/js/main.js" defer></script>
+</head>
+<body data-track="brutal" data-slug="opengl">
+<article class="lesson">
+<h1>Drawing with OpenGL</h1>
+
+<div class="objectives"><b>You will learn</b>
+<ul>
+  <li>How to request a core-profile OpenGL 4.1 context (which also works on macOS)</li>
+  <li>The GPU pipeline: vertex buffer → vertex shader → rasteriser → fragment shader</li>
+  <li>BRUTAL's fluent shader API and vertex layouts</li>
+  <li>Which GL objects are <code>IDisposable</code> and which you delete by hand</li>
+</ul></div>
+
+<p>OpenGL is the friendliest way into GPU programming, and it's where <code>samples/Hello/HelloOpenGl.cs</code> starts. When you're ready for explicit, modern GPU control, move on to <code>HelloVulkan</code> and <code>DemoVulkan</code>.</p>
+
+<h2>The pipeline in one picture</h2>
+<div class="diagram">
+<svg viewBox="0 0 700 110" font-family="Inter, sans-serif" font-size="13" fill="currentColor">
+  <g stroke="currentColor" stroke-width="2.5" fill="none">
+    <rect x="5" y="30" width="120" height="50"/><rect x="150" y="30" width="125" height="50"/><rect x="300" y="30" width="110" height="50"/><rect x="435" y="30" width="125" height="50"/><rect x="585" y="30" width="110" height="50"/>
+  </g>
+  <g text-anchor="middle"><text x="65" y="60">Vertex buffer</text><text x="212" y="60">Vertex shader</text><text x="355" y="60">Rasteriser</text><text x="497" y="60">Fragment shader</text><text x="640" y="60">Framebuffer</text></g>
+  <g font-size="11" text-anchor="middle" opacity=".7"><text x="65" y="100">positions, colours</text><text x="212" y="100">runs per vertex</text><text x="355" y="100">triangles → pixels</text><text x="497" y="100">runs per pixel</text><text x="640" y="100">SwapBuffers()</text></g>
+  <g fill="#e8483b"><path d="M127 55 l18 0 l-6 -5 m6 5 l-6 5" stroke="#e8483b" stroke-width="2.5"/><path d="M277 55 l18 0 l-6 -5 m6 5 l-6 5" stroke="#e8483b" stroke-width="2.5"/><path d="M412 55 l18 0 l-6 -5 m6 5 l-6 5" stroke="#e8483b" stroke-width="2.5"/><path d="M562 55 l18 0 l-6 -5 m6 5 l-6 5" stroke="#e8483b" stroke-width="2.5"/></g>
+</svg>
+</div>
+
+<h2>1. Ask GLFW for a GL context</h2>
+<script type="text/x-code">
+  Glfw.WindowHint(GlfwWindowHint.ContextVersionMajor, 4);
+  Glfw.WindowHint(GlfwWindowHint.ContextVersionMinor, 1);
+  Glfw.WindowHint(GlfwWindowHint.OpenGlProfile, Glfw.Constants.GLFW_OPENGL_CORE_PROFILE);
+
+  if (Platform.IsMacOS)                                   // from Brutal.Core
+      Glfw.WindowHint(GlfwWindowHint.OpenGlForwardCompat, 1);
+
+  Glfw.WindowHint(GlfwWindowHint.Resizable, Glfw.Constants.GLFW_FALSE);
+
+  using var window = Glfw.CreateWindow(new GlfwWindow.CreateInfo { Title = "Hello OpenGL", Size = new int2(640, 480) });
+
+  window.MakeContextCurrent();
+  Glfw.SwapInterval(1);   // vsync: wait for the display instead of drawing as fast as possible
+
+  unsafe
+  {
+      if (!Glad.Initialize(Glfw.PInvoke.GetProcAddress))
+          throw new InvalidOperationException("Failed to load the OpenGL functions with GLAD");
+  }
+</script>
+<p>Hints must be set <em>before</em> <code>CreateWindow</code>. The maintainers note: "Our OpenGL samples run on 4.1 for compatibility with macOS, but we should support up to 4.6 no problem." <b>GLAD</b> loads the GL function pointers from the driver. That's why the file needs <code>AllowUnsafeBlocks</code>.</p>
+
+<h2>2. Shaders, fluently</h2>
+<script type="text/x-code">
+  // The shaders are only needed until the program is linked, so they are disposed on return.
+  static GlProgram LinkProgram()
+  {
+      using var vertexShader = OpenGl
+          .CreateShader(GlShaderType.Vertex)
+          .SetSource(
+              """
+              #version 410 core
+              layout (location = 0) in vec2 aPos;
+              layout (location = 1) in vec3 aColor;
+              out vec3 color;
+              void main()
+              {
+                  color = aColor;
+                  gl_Position = vec4(aPos, 0.0, 1.0);
+              }
+              """u8
+          )
+          .Compile();
+
+      using var fragmentShader = OpenGl
+          .CreateShader(GlShaderType.Fragment)
+          .SetSource(
+              """
+              #version 410 core
+              in vec3 color;
+              out vec4 FragColor;
+              void main() { FragColor = vec4(color, 1.0); }
+              """u8
+          )
+          .Compile();
+
+      return OpenGl.CreateProgram().Attach(vertexShader, fragmentShader).Link();
+  }
+</script>
+<p>Notice the C# 11 <b>raw string literals</b> (<code>"""</code>) with the <code>u8</code> suffix. The GLSL source is stored as UTF-8 bytes at compile time, so nothing gets converted at runtime.</p>
+
+<h2>3. Vertex data and layout</h2>
+<script type="text/x-code">
+  record struct Vertex(float2 Position, float3 Color);   // 5 floats = 20 bytes, tightly packed
+
+  var vertexArray = OpenGl.GenVertexArray().Bind();
+  var vertexBuffer = OpenGl.GenBuffer();
+  vertexBuffer.Bind(GlBindTarget.ArrayBuffer);
+  OpenGl.BufferData(
+      GlBindTarget.ArrayBuffer,
+      new Vertex[]
+      {
+          new(new float2( 0.0f,  0.5f), new float3(1, 0, 0)),
+          new(new float2( 0.5f, -0.5f), new float3(0, 1, 0)),
+          new(new float2(-0.5f, -0.5f), new float3(0, 0, 1)),
+      },
+      GlBufferUsage.StaticDraw
+  );
+
+  // attribute 0: 2 floats at offset 0; attribute 1: 3 floats at offset 8. Stride = 20 bytes.
+  OpenGl.VertexAttribute(new GlAttribute(0, 2, OpenGl.GL_FLOAT, GlScaling.Float, 5 * sizeof(float), 0));
+  OpenGl.VertexAttribute(new GlAttribute(1, 3, OpenGl.GL_FLOAT, GlScaling.Float, 5 * sizeof(float), 2 * sizeof(float)));
+  OpenGl.EnableVertexAttribArray(0);
+  OpenGl.EnableVertexAttribArray(1);
+</script>
+<p>A <code>record struct</code> made of <code>float2</code> + <code>float3</code> is laid out in memory exactly the way the GPU expects. The <code>GlAttribute</code> calls describe that layout to the GPU: location, component count, type, stride and offset.</p>
+
+<h2>4. The draw loop</h2>
+<script type="text/x-code">
+  using var program = LinkProgram();     // declared AFTER the window: deleted while the context exists
+  OpenGl.ClearColor(float4.Rgb(0.2f, 0.3f, 0.3f));
+
+  while (!window.ShouldClose)
+  {
+      Glfw.PollEvents();
+      OpenGl.Clear(GlClearBit.Color);
+      program.Use();
+      vertexArray.Bind();
+      OpenGl.Draw(GlTopology.Triangles, 3, 1, 0, 0);   // 3 vertices, 1 instance
+      window.SwapBuffers();
+  }
+
+  // Vertex arrays and buffers aren't IDisposable: delete them while the GL context still exists.
+  OpenGl.DeleteVertexArrays([vertexArray]);
+  OpenGl.DeleteBuffers([vertexBuffer]);
+</script>
+
+<div class="callout warn"><span class="t">CONTEXT LIFETIME</span>
+<p>Every GL object belongs to a context, and the context belongs to the window. Delete or dispose GL objects <b>before</b> the window is destroyed. Declaring the window first with <code>using</code> and the program after it gets this right automatically.</p>
+</div>
+
+<h2>Going further</h2>
+<ul>
+  <li><b>Uniforms:</b> <code>program.Uniform("viewProjection"u8, view * projection)</code> sends a matrix to the shader. See <code>DemoTexturedQuad.cs</code>.</li>
+  <li><b>Dynamic geometry:</b> <code>DemoBox2D.cs</code> rebuilds a vertex array every frame with <code>GlBufferUsage.DynamicDraw</code>. That's the start of a sprite batcher (see <a href="/enginedev/rendering-2d">2D rendering</a>).</li>
+  <li><b>Textures:</b> <code>TextureLoader.LoadFromFile(path)</code>, then <code>OpenGl.TexImage2D</code>. Use <code>GL_NEAREST</code> filtering for pixel art.</li>
+  <li><b>Vulkan:</b> <code>HelloVulkan</code> → <code>HelloVulkanVma</code> → <code>DemoVulkan</code> (about 485 lines for a triangle, and you control everything).</li>
+</ul>
+
+<div class="exercise"><b>EXERCISE</b>
+<ol>
+  <li>Add a <code>uniform float time;</code> to the vertex shader and rotate the triangle. Pass <code>(float)Glfw.Time</code> each frame.</li>
+  <li>Turn the triangle into a quad with 6 vertices, then draw 100 quads in a grid from one buffer.</li>
+</ol>
+</div>
+</article>
+</body>
+</html>

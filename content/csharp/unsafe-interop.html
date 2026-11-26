@@ -1,0 +1,97 @@
+---
+title: Unsafe code, pointers & native interop
+description: Pointers, fixed, stackalloc, function pointers and P/Invoke in C#, the low-level features that BRUTAL's interop layer is built on.
+---
+<article class="lesson">
+<h1>Unsafe code, pointers &amp; native interop</h1>
+
+<p>Game frameworks spend their lives talking to C libraries such as GLFW, SDL, Vulkan, Box2D and ImGui. C# has first-class tools for this. You'll see <code>unsafe</code> blocks in BRUTAL samples, so here's what they mean.</p>
+
+<h2>Enabling unsafe code</h2>
+<script type="text/x-code">
+  #:property AllowUnsafeBlocks=true     // file-based app
+  // or <AllowUnsafeBlocks>true</AllowUnsafeBlocks> in the .csproj
+</script>
+
+<h2>Pointers</h2>
+<script type="text/x-code">
+  unsafe
+  {
+      int hp = 100;
+      int* p = &hp;          // address of hp
+      *p -= 30;              // write through the pointer
+      Console.WriteLine(hp); // 70
+
+      int* nums = stackalloc int[4] { 10, 20, 30, 40 };
+      Console.WriteLine(nums[2]);        // 30
+      Console.WriteLine(*(nums + 1));    // 20: pointer arithmetic
+  }
+</script>
+<p>BRUTAL wraps raw pointers in <code>Ptr&lt;T&gt;</code>, which provides <code>.Value</code>, indexing and <code>.Offset(n)</code>, and in owners such as <code>PtrOwner&lt;T&gt;</code>.</p>
+
+<h2>fixed: pinning managed memory</h2>
+<p>The GC can <em>move</em> managed arrays around. Before you hand one to native code, you have to pin it:</p>
+<script type="text/x-code">
+  var pixels = new byte[256 * 256 * 4];
+  unsafe
+  {
+      fixed (byte* data = pixels)                  // pinned for this block only
+      {
+          OpenGl.TexImage2D(OpenGl.GL_TEXTURE_2D, 0, (int)OpenGl.GL_RGBA8, 256, 256, 0,
+                            OpenGl.GL_RGBA, OpenGl.GL_UNSIGNED_BYTE, data);
+      }
+  }
+</script>
+<p>This is exactly what <code>DemoTexturedQuad.cs</code> does with <code>fixed (byte* data = texture.ImageData(level, 0, 0))</code>.</p>
+
+<h2>Passing structs by address</h2>
+<script type="text/x-code">
+  unsafe
+  {
+      var rect = new SdlFRect { x = 10, y = 10, w = 16, h = 16 };   // lives on the stack
+      Sdl.Render.RenderFillRect(renderer, &rect);                   // C function takes SDL_FRect*
+  }
+</script>
+
+<h2>P/Invoke: calling C from C#</h2>
+<script type="text/x-code">
+  using System.Runtime.InteropServices;
+
+  static partial class Native
+  {
+      // Source-generated marshalling (.NET 7+): fast, AOT-friendly
+      [LibraryImport("glfw", EntryPoint = "glfwGetTime")]
+      public static partial double GetTime();
+  }
+</script>
+<p>Bindings such as <code>Brutal.Glfw</code> contain thousands of these declarations, mostly <b>generated</b> from the C headers (look for <code>Generated/</code> folders and <code>*.gen.cs</code> files in the repo). Hand-written <code>Manual/</code> code then adds friendly C# APIs on top: events, properties, <code>IDisposable</code> and enums.</p>
+
+<h2>Blittable types: the key to fast interop</h2>
+<p>A struct is <b>blittable</b> when its memory layout is identical in C# and C: only primitives and other blittable structs, with no references. Blittable data crosses the boundary with zero copying. That's why <code>float2</code>, <code>SdlFRect</code> and your <code>record struct Vertex(float2, float3)</code> can be handed straight to the GPU. It's also why generic native containers use the <code>unmanaged</code> constraint.</p>
+
+<h2>Function pointers and callbacks</h2>
+<script type="text/x-code">
+  // C# 9 function pointers: no delegate allocation
+  [UnmanagedCallersOnly]
+  static void OnError(int code, byte* description) { /* ... */ }
+
+  unsafe
+  {
+      delegate* unmanaged<int, byte*, void> cb = &OnError;
+      // pass cb to a native "set callback" function
+  }
+</script>
+<p>Native callbacks like this are how GLFW key presses become BRUTAL's <code>window.OnKey</code> event. Exceptions must never leak out of an <code>[UnmanagedCallersOnly]</code> method, which is why BRUTAL catches them and stores them in an aggregator.</p>
+
+<div class="callout warn"><span class="t">SAFETY CHECKLIST</span>
+<ul>
+  <li>Never keep a pointer to a <code>fixed</code> or <code>stackalloc</code> buffer after its scope ends.</li>
+  <li>Every native allocation needs exactly one free.</li>
+  <li>Use <code>Span&lt;T&gt;</code> APIs where possible, because they're bounds-checked. Drop down to pointers only at the boundary.</li>
+</ul>
+</div>
+
+<div class="exercise"><b>EXERCISE</b>
+<p>Open <code>Brutal.Glfw/Manual/Libraries/Glfw.Window.cs</code> in the cloned repo and find where <code>OnKey</code> is raised. Trace it back to the generated native callback. Write three sentences explaining the path from a physical key press to your lambda.</p>
+</div>
+</article>

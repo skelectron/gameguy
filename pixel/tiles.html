@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tiles &amp; tilesets · GameGuy</title>
+<meta name="description" content="Design seamless tiles, organise tilesets and autotiling, and load tile maps in code.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="/assets/js/lessons.js" defer></script>
+<script src="/assets/js/main.js" defer></script>
+</head>
+<body data-track="pixel" data-slug="tiles">
+<article class="lesson">
+<h1>Tiles &amp; tilesets</h1>
+
+<h2>Why tiles?</h2>
+<p>Tiles let you build huge worlds from a small set of images. They save memory, keep art consistent, and work directly as collision data: in <a href="/brutal/capstone">Coin Dash</a>, the same <code>'#'</code> character is both the picture and the wall.</p>
+
+<h2>Seamless tiles</h2>
+<ul>
+  <li>The tile's edges must <b>match</b> on opposite sides: left with right, and top with bottom.</li>
+  <li>Avoid strong single features. A unique crack repeated every 16 px makes the grid obvious. Spread detail evenly, and make 2–3 <b>variants</b> to scatter randomly.</li>
+  <li>Test by tiling 4×4 copies. Most editors have a tile preview mode for this.</li>
+</ul>
+<div class="art-row">
+  <figure><canvas data-art="gggggggggggggggg|lgglgggglgglgggg|dddddddddddddddd|bbbbbbbbbbbbbbbb|bbbcbbbbbbbbcbbb|bbbbbbbbbcbbbbbb|bcbbbbbbbbbbbbbb|bbbbbbcbbbbbbbbb" data-pal='{"g":"#1f9d72","l":"#5fd39c","d":"#14614a","b":"#7a4a2e","c":"#5c3620"}' data-scale="14"></canvas><figcaption>Two 8-px-wide grass-top tiles side by side: the edges continue seamlessly</figcaption></figure>
+</div>
+
+<h2>Tileset organisation</h2>
+<p>For a platformer ground tileset you need: top-left, top, top-right, left, centre, right, bottom-left, bottom and bottom-right pieces (a "9-slice"), plus inner corners and single-tile pillars. <b>Autotiling</b> chooses the right piece automatically by checking each tile's neighbours:</p>
+<script type="text/x-code">
+  // 4-bit autotile: which neighbours are solid? (up=1, right=2, down=4, left=8)
+  static int AutotileIndex(Func<int, int, bool> solid, int x, int y) =>
+      (solid(x, y - 1) ? 1 : 0) | (solid(x + 1, y) ? 2 : 0) | (solid(x, y + 1) ? 4 : 0) | (solid(x - 1, y) ? 8 : 0);
+  // 16 combinations -> 16 tiles in your atlas. (An 8-neighbour "blob" set uses 47.)
+</script>
+<p>Coin Dash uses the smallest possible version of this idea: it draws a grass strip only when the tile above is <em>not</em> solid (<code>if (!Solid(tx, ty - 1))</code>).</p>
+
+<h2>Maps in data</h2>
+<ul>
+  <li><b>Text maps</b> (like Coin Dash) are perfect for prototyping.</li>
+  <li><b>Tiled</b> (<a href="https://www.mapeditor.org/">mapeditor.org</a>) is a free, popular editor. It exports JSON, which you can load with <code>System.Text.Json</code>.</li>
+  <li>Keep <b>visual layers</b> (background, decoration) separate from the <b>collision layer</b>.</li>
+</ul>
+
+<div class="exercise"><b>EXERCISE</b>
+<p>Draw a 16×16 ground 9-slice (9 tiles) in the editor, export it, and implement 4-bit autotiling in Coin Dash so the edges and corners draw automatically from the <code>'#'</code> map.</p>
+</div>
+</article>
+</body>
+</html>

@@ -1,0 +1,116 @@
+---
+title: Pixel-perfect 2D with SDL
+description: Use Brutal.Sdl's built-in renderer for crisp, integer-scaled pixel art, with sprites, rectangles, input and vsync.
+---
+<article class="lesson">
+<h1>Pixel-perfect 2D with SDL</h1>
+
+<div class="objectives"><b>You will learn</b>
+<ul>
+  <li>How to open an SDL window with a hardware-accelerated 2D renderer</li>
+  <li>How to render at a tiny "virtual" resolution (e.g. 320×180) and scale it up crisply</li>
+  <li>How to load PNG sprites with <code>Sdl.Image</code> and draw them with nearest-neighbour filtering</li>
+  <li>How to handle input with the SDL event queue and keyboard state</li>
+</ul></div>
+
+<p>GLFW plus OpenGL gives you complete control, but you have to write shaders just to draw a square. <b>SDL3</b>, wrapped as <code>Brutal.Sdl</code>, includes a 2D renderer that draws textures and rectangles on the GPU for you. It's ideal for pixel-art games, and it's what we'll use for the <a href="/brutal/capstone">capstone</a>.</p>
+
+<h2>Window, renderer and vsync</h2>
+<script type="text/x-code" data-file="PixelWindow.cs">
+  #:property AllowUnsafeBlocks=true
+  #:package Ahwoo.Brutal.Sdl@2026.10.3
+  #:package Ahwoo.Brutal.Sdl.Image@2026.10.3
+
+  using Brutal.SdlApi;
+  using Brutal.SdlApi.Image;
+
+  const int VIRTUAL_W = 320, VIRTUAL_H = 180;   // your "pixel canvas"
+
+  Sdl.Init.Initialize(SdlInitFlags.Video);
+  try { Run(); }
+  finally { Sdl.Init.Quit(); }
+
+  static unsafe void Run()
+  {
+      // 4x the virtual size: 1280x720
+      using var window = Sdl.Video.CreateWindow("Pixel Window", VIRTUAL_W * 4, VIRTUAL_H * 4, SdlWindowFlags.Resizable);
+      using var renderer = Sdl.Render.CreateRenderer(window, null!);   // null picks the best driver
+      Sdl.Render.SetRenderVSync(renderer, 1);
+
+      // Draw in 320x180 coordinates; SDL scales by whole numbers only and letterboxes the rest.
+      Sdl.Render.SetRenderLogicalPresentation(renderer, VIRTUAL_W, VIRTUAL_H, SdlRendererLogicalPresentation.IntegerScale);
+
+      var running = true;
+      while (running)
+      {
+          while (Sdl.Events.PollEvent(out var ev))
+          {
+              if (ev.type is SdlEventType.Quit or SdlEventType.WindowCloseRequested)
+                  running = false;
+              else if (ev.type == SdlEventType.KeyDown && ev.key.scancode == SdlScancode.Escape)
+                  running = false;
+          }
+
+          Sdl.Render.SetRenderDrawColor(renderer, 29, 27, 38, 255);   // background
+          Sdl.Render.RenderClear(renderer);
+
+          Sdl.Render.SetRenderDrawColor(renderer, 232, 72, 59, 255);  // a 16x16 "player"
+          var player = new SdlFRect { x = 152, y = 82, w = 16, h = 16 };
+          Sdl.Render.RenderFillRect(renderer, &player);
+
+          Sdl.Render.SetRenderDrawColor(renderer, 255, 255, 255, 255);
+          Sdl.Render.RenderDebugText(renderer, 4, 4, "320x180, integer scaled");
+
+          Sdl.Render.RenderPresent(renderer);
+      }
+  }
+</script>
+
+<h3>Why <code>IntegerScale</code>?</h3>
+<p>Pixel art only looks right when every art pixel becomes an exact N×N block of screen pixels. If you scale 320×180 to a 1366-pixel-wide window (×4.27), some art pixels become 4 screen pixels wide and some become 5. That causes "pixel wobble" and uneven lines. <code>SdlRendererLogicalPresentation.IntegerScale</code> picks the largest whole-number scale that fits and adds black bars around the rest. You can also use <code>Letterbox</code> (keeps the aspect ratio but allows fractional scaling) or <code>Stretch</code>.</p>
+
+<div class="callout tip"><span class="t">CHOOSING A VIRTUAL RESOLUTION</span>
+<p><b>320×180</b> and <b>640×360</b> divide evenly into 720p, 1080p, 1440p and 4K (16:9). <b>256×224</b> is the classic console size. See <a href="/pixel/canvas-palette">Canvas size &amp; palettes</a>.</p>
+</div>
+
+<h2>Sprites with Sdl.Image</h2>
+<script type="text/x-code">
+  // Load once, before the loop. The texture is IDisposable: declare it after the renderer.
+  using var heroTex = SdlImage.LoadTexture(renderer, "assets/hero.png");
+  Sdl.Render.SetTextureScaleMode(heroTex, SdlScaleMode.Nearest);   // crisp pixels, no blur
+
+  // Each frame: draw frame #2 (16x16 cells in a horizontal strip) at (x, y).
+  var src = new SdlFRect { x = 2 * 16, y = 0, w = 16, h = 16 };
+  var dst = new SdlFRect { x = MathF.Round(px), y = MathF.Round(py), w = 16, h = 16 };
+  Sdl.Render.RenderTexture(renderer, heroTex, &src, &dst);
+</script>
+<ul>
+  <li><b><code>SdlScaleMode.Nearest</code></b> is essential. Linear filtering blurs your art. SDL3 also has a <code>Pixelart</code> mode that keeps edges sharp but smooth at non-integer scales.</li>
+  <li><b>Round positions</b> before drawing. Sub-pixel positions on pixel art cause shimmering.</li>
+  <li>The <code>src</code> rectangle selects one cell from a <em>sprite sheet</em>. Animation is just changing which cell you pick over time (see <a href="/pixel/animation">Sprite animation</a>).</li>
+</ul>
+
+<h2>Keyboard: events vs state</h2>
+<script type="text/x-code">
+  // "Is it held right now?" (movement)
+  var keys = Sdl.Keyboard.GetKeyboardState();          // bool[] indexed by scancode
+  bool left  = keys[(int)SdlScancode.Left]  || keys[(int)SdlScancode.A];
+  bool right = keys[(int)SdlScancode.Right] || keys[(int)SdlScancode.D];
+
+  // "Did it just get pressed?" (jump, shoot, menu): use events, and ignore auto-repeat
+  if (ev.type == SdlEventType.KeyDown && ev.key.scancode == SdlScancode.Space && ev.key.repeat == 0)
+      jumpPressed = true;
+</script>
+<p><b>Scancodes</b> are physical key positions, so <code>SdlScancode.A</code> is the key in the "A" position on any keyboard layout. That's what you want for WASD on AZERTY keyboards.</p>
+
+<h2>Ownership order</h2>
+<p>In <code>samples/Demo/DemoSdl.cs</code>, the objects are declared "in dependency order, so the using declarations dispose them in reverse": window → renderer → textures. A texture belongs to a renderer, and a renderer belongs to a window, so they must be destroyed in the reverse order.</p>
+
+<div class="exercise"><b>EXERCISE</b>
+<ol>
+  <li>Move the red square with the arrow keys using <code>GetKeyboardState</code> and the fixed-timestep loop from the <a href="/brutal/game-loop">previous lesson</a>. (Use <code>Stopwatch</code> or <code>Sdl.PInvoke.GetTicksNS()</code> for time.)</li>
+  <li>Draw a 20×11 grid of 16×16 "tiles" with <code>RenderFillRect</code> in two alternating colours.</li>
+  <li>Make a 4-frame sprite in the <a href="/pixel/editor">GameGuy pixel editor</a>, export it as a PNG and animate it at 8 FPS.</li>
+</ol>
+</div>
+</article>

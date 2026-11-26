@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The MDA framework · GameGuy</title>
+<meta name="description" content="Mechanics, Dynamics and Aesthetics, the classic framework for connecting game rules to player experience.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="/assets/js/lessons.js" defer></script>
+<script src="/assets/js/main.js" defer></script>
+</head>
+<body data-track="design" data-slug="mda">
+<article class="lesson">
+<h1>The MDA framework</h1>
+
+<p><b>MDA</b> (Mechanics, Dynamics, Aesthetics; Hunicke, LeBlanc &amp; Zubek, 2004) is a simple model for thinking about how rules turn into feelings.</p>
+
+<div class="diagram">
+<svg viewBox="0 0 640 140" font-family="Inter, sans-serif" font-size="14" fill="currentColor">
+  <g stroke="currentColor" stroke-width="2.5" fill="none"><rect x="10" y="30" width="170" height="60"/><rect x="235" y="30" width="170" height="60"/><rect x="460" y="30" width="170" height="60"/></g>
+  <g text-anchor="middle" font-weight="700"><text x="95" y="58">Mechanics</text><text x="320" y="58">Dynamics</text><text x="545" y="58">Aesthetics</text></g>
+  <g text-anchor="middle" font-size="12" opacity=".75"><text x="95" y="78">rules &amp; code</text><text x="320" y="78">behaviour in play</text><text x="545" y="78">player's feelings</text></g>
+  <g stroke="#e8483b" stroke-width="2.5"><path d="M182 50 h48"/><path d="M407 50 h48"/></g>
+  <g stroke="#2f7de1" stroke-width="2.5"><path d="M455 75 h-48"/><path d="M230 75 h-48"/></g>
+  <text x="320" y="122" text-anchor="middle" font-size="12"><tspan fill="#e8483b">designer builds →</tspan>   <tspan fill="#2f7de1">← player experiences</tspan></text>
+</svg>
+</div>
+
+<ul>
+  <li><b>Mechanics</b>: the rules and data. <code>JUMP_SPEED = 330</code>, "coins give 10 points", "enemies respawn after 30 s".</li>
+  <li><b>Dynamics</b>: what happens when players interact with those rules over time. Speedrunners finding routes, players camping respawn points, economies inflating.</li>
+  <li><b>Aesthetics</b>: the emotional responses. Challenge, discovery, fellowship, expression, fantasy, narrative, sensation, or submission (relaxing play).</li>
+</ul>
+
+<h2>Why it matters</h2>
+<p>You can only edit <b>mechanics</b>, but players only care about <b>aesthetics</b>. Designing well means reasoning through dynamics: "If I add a timer (mechanic), players will rush and take risks (dynamic), which creates tension and excitement (aesthetic)."</p>
+
+<h2>Worked example: Coin Dash</h2>
+<div class="table-wrap"><table>
+<tr><th>Mechanic</th><th>Dynamic</th><th>Aesthetic</th></tr>
+<tr><td>Coyote time, jump buffer</td><td>Players attempt bolder jumps</td><td>Mastery, flow</td></tr>
+<tr><td>Level timer shown on the HUD</td><td>Route planning, retries</td><td>Challenge, competition</td></tr>
+<tr><td>Pit respawns you at the start (coins kept)</td><td>Low-risk experimentation</td><td>Discovery without frustration</td></tr>
+</table></div>
+
+<div class="exercise"><b>EXERCISE</b>
+<p>Pick a target aesthetic for your game, e.g. "tense discovery". Propose three mechanics that should produce it, and predict the dynamics each one creates. Then predict one <em>unwanted</em> dynamic (an exploit) and a mechanic that would counter it.</p>
+</div>
+</article>
+</body>
+</html>

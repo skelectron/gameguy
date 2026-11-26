@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Difficulty &amp; balancing · GameGuy</title>
+<meta name="description" content="Flow, difficulty curves, spreadsheets for balancing and making tuning data-driven.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="/assets/js/lessons.js" defer></script>
+<script src="/assets/js/main.js" defer></script>
+</head>
+<body data-track="design" data-slug="balancing">
+<article class="lesson">
+<h1>Difficulty &amp; balancing</h1>
+
+<h2>Flow</h2>
+<p>Players are most engaged in <b>flow</b>: when the challenge roughly matches their skill. If the challenge is too high they get anxious, and if it's too low they get bored. Because skill grows as people play, difficulty should rise too, in waves rather than a straight line.</p>
+
+<h2>Levers you can pull</h2>
+<div class="table-wrap"><table>
+<tr><th>Lever</th><th>Examples</th></tr>
+<tr><td>Precision</td><td>Platform width, gap length, hitbox size</td></tr>
+<tr><td>Time pressure</td><td>Timers, enemy speed, reaction windows</td></tr>
+<tr><td>Complexity</td><td>Number of things to track at once</td></tr>
+<tr><td>Punishment</td><td>Checkpoint spacing, lives, what you lose on death</td></tr>
+<tr><td>Resources</td><td>Health, ammo, money</td></tr>
+</table></div>
+<p>Lowering the <b>punishment</b> (more checkpoints) often lets you keep the <b>challenge</b> high without frustrating players.</p>
+
+<h2>Numbers in spreadsheets, not code</h2>
+<p>Put balance data in data files (JSON, CSV), not in constants. Designers can tweak them without recompiling, and with hot reload they can do it while the game is running.</p>
+<script type="text/x-code" data-file="enemies.json">
+  {
+    "slime": { "hp": 3,  "speed": 30, "damage": 1, "xp": 2 },
+    "bat":   { "hp": 2,  "speed": 70, "damage": 1, "xp": 3 },
+    "golem": { "hp": 20, "speed": 15, "damage": 3, "xp": 15 }
+  }
+</script>
+<script type="text/x-code">
+  using System.Text.Json;
+  record EnemyDef(int Hp, float Speed, int Damage, int Xp);
+
+  var defs = JsonSerializer.Deserialize<Dictionary<string, EnemyDef>>(
+      File.ReadAllText("enemies.json"),
+      new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+</script>
+
+<h2>Useful formulas</h2>
+<ul>
+  <li><b>Time-to-kill</b> = enemy HP ÷ player DPS. Keep it in a target range for each enemy tier.</li>
+  <li><b>Exponential growth</b> (<code>cost = base × 1.15^level</code>) for idle and RPG progression. Pair it with growing rewards.</li>
+  <li><b>Dominant strategies</b>: if one option is always best, the other options don't matter. Give each option a cost or a counter.</li>
+</ul>
+
+<div class="exercise"><b>EXERCISE</b>
+<p>Build a spreadsheet for a 10-wave arena: enemy count, HP and speed per wave, plus player DPS per upgrade level. Plot time-to-clear for each wave and adjust the numbers until it rises in waves, with an easy wave after every boss wave.</p>
+</div>
+</article>
+</body>
+</html>

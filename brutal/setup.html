@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Setup: .NET 10, GPU &amp; samples · GameGuy</title>
+<meta name="description" content="Install the .NET 10 SDK, check your GPU drivers, clone BRUTAL and run your first sample.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="/assets/js/lessons.js" defer></script>
+<script src="/assets/js/main.js" defer></script>
+</head>
+<body data-track="brutal" data-slug="setup">
+<article class="lesson">
+<h1>Setup: .NET 10, GPU &amp; samples</h1>
+
+<div class="objectives"><b>You will learn</b>
+<ul>
+  <li>What you need installed to use BRUTAL</li>
+  <li>How to clone the repo and run its single-file samples</li>
+  <li>How <code>#:package</code> directives pull in NuGet packages</li>
+</ul></div>
+
+<h2>Requirements</h2>
+<div class="table-wrap"><table>
+<tr><th>Need</th><th>Why</th></tr>
+<tr><td><a href="https://dotnet.microsoft.com/download">.NET 10 SDK</a></td><td>BRUTAL targets .NET 10. It also gives you <code>dotnet run file.cs</code> with no project file.</td></tr>
+<tr><td>Windows x64, Linux x64, or macOS on Apple silicon</td><td>The packages bundle native libraries for these three platforms.</td></tr>
+<tr><td>A Vulkan 1.3 GPU with current drivers</td><td>Only needed for rendering. OpenGL samples run at 4.1.</td></tr>
+<tr><td><a href="https://vulkan.lunarg.com/">Vulkan SDK</a> (optional)</td><td>Validation layers while you develop. Required on macOS, where it provides the loader and MoltenVK.</td></tr>
+<tr><td>Git</td><td>To clone the repository and its samples.</td></tr>
+</table></div>
+
+<h3>Linux extras</h3>
+<p>Install a Vulkan loader and driver, for example <code>libvulkan1</code> and <code>mesa-vulkan-drivers</code> on Debian or Ubuntu. Windowed samples need an X11 or Wayland session, and the native file dialog needs GTK 3.</p>
+
+<h2>1. Install .NET 10</h2>
+<p>Download the SDK from <a href="https://dotnet.microsoft.com/download">dotnet.microsoft.com</a>, then check it works:</p>
+<script type="text/x-code" data-lang="bash">
+  dotnet --list-sdks
+  # 10.0.xxx [C:\Program Files\dotnet\sdk]
+</script>
+
+<h2>2. Clone BRUTAL</h2>
+<script type="text/x-code" data-lang="bash">
+  git clone https://github.com/ahwootech/BRUTAL.git brutal
+  cd brutal
+</script>
+<p>The top-level folders (<code>Brutal.Core</code>, <code>Brutal.Glfw</code> and so on) hold the library sources. The <code>samples/</code> folder is where you'll spend most of your time early on:</p>
+<ul>
+  <li><code>samples/Hello/</code> has one tiny sample per package. Each is the smallest useful starting point for that package.</li>
+  <li><code>samples/Demo/</code> has fuller programs that combine several packages, such as the Box2D demo, the textured quad and the glTF viewer.</li>
+</ul>
+
+<h2>3. Run a sample</h2>
+<script type="text/x-code" data-lang="bash">
+  cd samples/Hello
+  dotnet run HelloCore.cs
+  # Running on Windows
+  # 1024 floats = 4 KiB ...
+</script>
+<p>That's it: a single <code>.cs</code> file with no <code>.csproj</code>. .NET 10's <em>file-based apps</em> feature reads special directives at the top of the file:</p>
+<script type="text/x-code" data-file="HelloCore.cs (top)">
+  #:property AllowUnsafeBlocks=true
+  #:package Ahwoo.Brutal.Core@2026.10.4
+</script>
+<ul>
+  <li><code>#:package Name@Version</code> is a NuGet package reference, which <code>dotnet run</code> restores automatically.</li>
+  <li><code>#:property Key=Value</code> is an MSBuild property. Samples that use pointers turn on <code>AllowUnsafeBlocks</code>.</li>
+</ul>
+
+<div class="callout info"><span class="t">VERSIONS</span>
+<p>BRUTAL packages use calendar versions such as <code>2026.10.4</code>. Different packages can be on different versions. Copy the exact versions from the current samples in the repo, because they are known to work together.</p>
+</div>
+
+<h2>4. Start a project of your own</h2>
+<p>When you outgrow single files, make a normal console project:</p>
+<script type="text/x-code" data-lang="bash">
+  dotnet new console -n HelloBrutal
+  cd HelloBrutal
+  dotnet add package Ahwoo.Brutal.Core
+  dotnet add package Ahwoo.Brutal.Glfw
+  dotnet run
+</script>
+<p>If you use unsafe code, add <code>&lt;AllowUnsafeBlocks&gt;true&lt;/AllowUnsafeBlocks&gt;</code> to the <code>.csproj</code>.</p>
+
+<h2>Editor setup</h2>
+<p>Any C# editor works: VS Code with the C# Dev Kit, Visual Studio 2026 or JetBrains Rider. Two tips:</p>
+<ul>
+  <li>Keep the BRUTAL repo open in a second window, because reading the sample code is the best documentation there is.</li>
+  <li>Install <a href="https://renderdoc.org/">RenderDoc</a> early. BRUTAL has <code>Brutal.RenderDoc</code> integration for capturing GPU frames.</li>
+</ul>
+
+<div class="callout tip"><span class="t">WHERE TO GET HELP</span>
+<p>Ask on the official <a href="https://forums.ahwoo.com/forums/brutal/">BRUTAL forums</a> (Guides &amp; Help) or the Ahwoo Discord. Report bugs as GitHub issues, and report security problems privately as described in <code>SECURITY.md</code>.</p>
+</div>
+
+<div class="exercise"><b>EXERCISE</b>
+<p>Run <code>HelloCore.cs</code>, <code>HelloNumerics.cs</code> and <code>HelloLogging.cs</code>. For each one, read the file and predict its output <em>before</em> you run it.</p>
+</div>
+</article>
+</body>
+</html>

@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Variables, types &amp; control flow · GameGuy</title>
+<meta name="description" content="C# fundamentals for game programmers, including numeric types, var, if/switch, loops, methods, enums and pattern matching.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="/assets/js/lessons.js" defer></script>
+<script src="/assets/js/main.js" defer></script>
+</head>
+<body data-track="csharp" data-slug="basics">
+<article class="lesson">
+<h1>Variables, types &amp; control flow</h1>
+
+<h2>Numeric types you'll actually use</h2>
+<div class="table-wrap"><table>
+<tr><th>Type</th><th>Size</th><th>Use for</th></tr>
+<tr><td><code>int</code></td><td>4 bytes</td><td>Counts, indices, tile coordinates, HP</td></tr>
+<tr><td><code>float</code></td><td>4 bytes</td><td>Positions, velocities, angles. GPUs use floats, so games do too.</td></tr>
+<tr><td><code>double</code></td><td>8 bytes</td><td>Total elapsed time (e.g. <code>Glfw.Time</code>) and big-world coordinates</td></tr>
+<tr><td><code>byte</code></td><td>1 byte</td><td>Colour channels (0–255) and raw data</td></tr>
+<tr><td><code>long</code> / <code>ulong</code></td><td>8 bytes</td><td>Tick counters, IDs, nanosecond timestamps</td></tr>
+<tr><td><code>bool</code></td><td>1 byte</td><td>Flags</td></tr>
+</table></div>
+<script type="text/x-code">
+  int coins = 0;
+  float speed = 110f;          // the f suffix makes it a float literal
+  double elapsed = 0.0;
+  var name = "Player 1";       // var: the compiler infers string
+  const float GRAVITY = 950f;  // a compile-time constant
+
+  coins += 5;
+  speed *= 1.5f;
+  int tile = (int)(123.7f / 16);   // explicit cast truncates: 7
+</script>
+
+<div class="callout warn"><span class="t">FLOAT GOTCHAS</span>
+<p><code>0.1f + 0.2f</code> is not exactly <code>0.3f</code>. Never compare floats with <code>==</code> for gameplay. Use a tolerance (<code>MathF.Abs(a - b) &lt; 0.0001f</code>). Also, <code>5 / 2</code> is <code>2</code> (integer division). Write <code>5 / 2f</code> to get 2.5.</p>
+</div>
+
+<h2>Branching</h2>
+<script type="text/x-code">
+  if (hp <= 0)
+      Die();
+  else if (hp < 25)
+      PlayLowHealthWarning();
+
+  // switch expression: compact and exhaustive
+  string label = state switch
+  {
+      PlayerState.Idle => "idle",
+      PlayerState.Running => "run",
+      PlayerState.Jumping or PlayerState.Falling => "air",
+      _ => "unknown",
+  };
+
+  enum PlayerState { Idle, Running, Jumping, Falling }
+</script>
+
+<h2>Loops</h2>
+<script type="text/x-code">
+  for (var y = 0; y < 11; y++)          // classic: rows of a tile map
+  for (var x = 0; x < 20; x++)
+      DrawTile(x, y);
+
+  foreach (var enemy in enemies)        // every element
+      enemy.Think();
+
+  while (!window.ShouldClose)           // the game loop!
+      Glfw.PollEvents();
+</script>
+
+<h2>Methods</h2>
+<script type="text/x-code">
+  static float Clamp01(float v) => v < 0 ? 0 : v > 1 ? 1 : v;   // expression-bodied
+
+  static bool TryDamage(ref int hp, int amount, out bool died)
+  {
+      hp -= amount;          // ref: modifies the caller's variable
+      died = hp <= 0;        // out: must be assigned before returning
+      return amount > 0;
+  }
+
+  var hp = 10;
+  TryDamage(ref hp, 12, out var died);
+</script>
+<p><code>ref</code> and <code>out</code> show up all over BRUTAL. For example, <code>ImGui.SliderFloat("Speed"u8, ref speed, 0, 300)</code> writes the slider's value straight into your variable.</p>
+
+<h2>Pattern matching</h2>
+<script type="text/x-code">
+  if (ev.type is SdlEventType.Quit or SdlEventType.WindowCloseRequested)
+      running = false;
+
+  var bonus = score switch
+  {
+      >= 1000 => "S",
+      >= 500  => "A",
+      > 0     => "B",
+      _       => "-",
+  };
+</script>
+
+<div class="exercise"><b>EXERCISE: FIZZBUZZ, GAME EDITION</b>
+<p>Loop over turns 1–30. On every 3rd turn spawn a slime, on every 5th a bat, and on every 15th a boss. Print the spawn for each turn using a <code>switch</code> expression on <code>(turn % 3, turn % 5)</code> tuple patterns.</p>
+</div>
+</article>
+</body>
+</html>

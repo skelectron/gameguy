@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tour of the packages · GameGuy</title>
+<meta name="description" content="A map of every BRUTAL package, what it does, and which sample to start from.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="/assets/js/lessons.js" defer></script>
+<script src="/assets/js/main.js" defer></script>
+</head>
+<body data-track="brutal" data-slug="packages">
+<article class="lesson">
+<h1>Tour of the packages</h1>
+
+<p>BRUTAL is about 48 small libraries. You'll never use all of them in one game. Choose the ones you need, the way you'd pick from a toolbox. Every folder <code>Brutal.X</code> in the repo is published as the NuGet package <code>Ahwoo.Brutal.X</code>.</p>
+
+<h2>Foundations</h2>
+<div class="table-wrap"><table>
+<tr><th>Package</th><th>What it gives you</th><th>Sample</th></tr>
+<tr><td><code>Core</code></td><td>Base types, platform detection (<code>Platform.IsMacOS</code>), <code>ByteSize</code>/<code>ElementCount</code>, <code>Ptr&lt;T&gt;</code>, Roslyn analyzers</td><td>HelloCore</td></tr>
+<tr><td><code>Interop</code></td><td>The custom interop layer behind all the native bindings</td><td>n/a</td></tr>
+<tr><td><code>Memory</code></td><td>Unmanaged allocation with <code>Mem</code>, plus <code>PtrOwner&lt;T&gt;</code></td><td>HelloMemory</td></tr>
+<tr><td><code>Collections</code></td><td>Non-allocating collections such as <code>NativeList&lt;T&gt;</code></td><td>HelloCollections</td></tr>
+<tr><td><code>Strings</code></td><td>UTF-8 <code>String8</code> and <code>StringBuilder&lt;byte&gt;</code></td><td>HelloStrings</td></tr>
+<tr><td><code>Numerics</code> / <code>Maths</code></td><td><code>float2/3/4</code>, <code>int2</code>, <code>float4x4</code>, plus <code>Random</code> helpers</td><td>HelloNumerics, HelloMaths</td></tr>
+<tr><td><code>Concurrency</code></td><td><code>JobScheduler</code> and <code>IJob</code> for multithreaded work</td><td>HelloConcurrency</td></tr>
+<tr><td><code>Logging</code></td><td>A thin, friendly layer over Microsoft.Extensions.Logging</td><td>HelloLogging</td></tr>
+<tr><td><code>Localization</code></td><td>Localised strings with named variables</td><td>HelloLocalization</td></tr>
+</table></div>
+
+<h2>Windowing &amp; input</h2>
+<div class="table-wrap"><table>
+<tr><th>Package</th><th>What it gives you</th></tr>
+<tr><td><code>Glfw</code></td><td>Windows, GL/Vulkan contexts, keyboard, mouse and gamepads. Small and focused.</td></tr>
+<tr><td><code>Sdl</code></td><td>SDL3: windows, events, a <b>built-in 2D renderer</b>, audio and gamepads</td></tr>
+<tr><td><code>Sdl.Image</code> / <code>Sdl.Mixer</code> / <code>Sdl.Ttf</code></td><td>Load PNGs, play sounds and render TrueType text</td></tr>
+<tr><td><code>NativeFileDialog</code></td><td>OS open/save dialogs, handy for tools</td></tr>
+<tr><td><code>NotCurses</code></td><td>Rich terminal UIs, e.g. for roguelikes and server consoles</td></tr>
+</table></div>
+
+<div class="callout tip"><span class="t">GLFW OR SDL?</span>
+<p>For a <b>2D pixel game</b>, choose <b>SDL</b>: its renderer draws textured sprites and rectangles with no shaders needed. Choose <b>GLFW</b> when you'll write your own renderer in OpenGL or Vulkan. This course teaches both.</p>
+</div>
+
+<h2>Graphics</h2>
+<div class="table-wrap"><table>
+<tr><th>Package</th><th>What it gives you</th></tr>
+<tr><td><code>OpenGl</code></td><td>OpenGL bindings with a fluent API (<code>CreateShader().SetSource().Compile()</code>)</td></tr>
+<tr><td><code>Vulkan</code>, <code>Vulkan.Abstractions</code>, <code>Vulkan.Vma</code></td><td>Modern explicit GPU API, helpers, and the Vulkan Memory Allocator</td></tr>
+<tr><td><code>ShaderC</code>, <code>Slang</code></td><td>Compile GLSL/HLSL/Slang shaders to SPIR-V at runtime</td></tr>
+<tr><td><code>Texture</code>, <code>Ktx</code>, <code>Gli</code>, <code>Stb</code></td><td>Load images and GPU texture formats; <code>TextureLoader.LoadFromFile</code> chooses a backend from the file extension</td></tr>
+<tr><td><code>Gltf</code>, <code>MeshOptimizer</code>, <code>Render.Mesh</code></td><td>3D model loading and optimisation</td></tr>
+<tr><td><code>FreeType</code></td><td>Font rasterisation</td></tr>
+</table></div>
+
+<h2>UI, debugging &amp; tools</h2>
+<div class="table-wrap"><table>
+<tr><th>Package</th><th>What it gives you</th></tr>
+<tr><td><code>ImGui</code> (+ Backends, Extensions, FreeType), <code>ImPlot</code></td><td>Dear ImGui (docking branch) for debug UIs and editors, plus graphs</td></tr>
+<tr><td><code>RenderDoc</code>, <code>RenderDoc.ImGui</code></td><td>Trigger GPU frame captures from inside your game</td></tr>
+<tr><td><code>Monitor.Common</code> / <code>Monitor.Host</code></td><td>Runtime monitoring</td></tr>
+</table></div>
+
+<h2>Physics, audio, networking, misc</h2>
+<div class="table-wrap"><table>
+<tr><th>Package</th><th>What it gives you</th></tr>
+<tr><td><code>Box2D</code></td><td>2D rigid-body physics</td></tr>
+<tr><td><code>Jolt</code></td><td>3D rigid-body physics (used in AAA games)</td></tr>
+<tr><td><code>OpenAl</code></td><td>Free, cross-platform positional audio</td></tr>
+<tr><td><code>Fmod</code></td><td>FMOD Studio bindings. You need your own FMOD licence and libraries.</td></tr>
+<tr><td><code>RakNet</code></td><td>UDP game networking</td></tr>
+<tr><td><code>ZLib</code></td><td>Compression</td></tr>
+</table></div>
+
+<h2>Recommended learning order</h2>
+<p>This follows the official samples README:</p>
+<ol>
+  <li><b>Foundations:</b> HelloCore, then HelloMemory, HelloCollections and HelloStrings</li>
+  <li><b>Windowing:</b> HelloGlfw, then HelloImGui</li>
+  <li><b>Graphics:</b> HelloOpenGl for a triangle, or HelloVulkan then DemoVulkan</li>
+  <li><b>Audio:</b> HelloOpenAl</li>
+  <li><b>Physics:</b> HelloBox2D or HelloJolt, then their demos</li>
+</ol>
+<p>The rest of this track follows that order, with a detour into SDL for pixel-perfect 2D.</p>
+
+<div class="callout brutal"><span class="t">READ THE "RIAN" COMMENTS</span>
+<p>Many samples contain <code>// RIAN:</code> notes from the maintainers, such as "This package is due for a big update for custom allocators." They tell you which APIs are stable and which are about to change. Read them!</p>
+</div>
+</article>
+</body>
+</html>

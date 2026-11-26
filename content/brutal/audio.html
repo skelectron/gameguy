@@ -1,0 +1,97 @@
+---
+title: Sound with OpenAL
+description: Play generated and loaded sounds in BRUTAL with OpenAL devices, contexts, buffers and sources, plus SDL Mixer and FMOD options.
+---
+<article class="lesson">
+<h1>Sound with OpenAL</h1>
+
+<div class="objectives"><b>You will learn</b>
+<ul>
+  <li>The OpenAL model: device → context → buffers and sources</li>
+  <li>How to generate a sound effect from raw PCM samples</li>
+  <li>Your three audio options in BRUTAL: OpenAL, SDL Mixer and FMOD</li>
+</ul></div>
+
+<h2>The OpenAL model</h2>
+<ul>
+  <li><b>Device</b>: an audio output, such as your speakers.</li>
+  <li><b>Context</b>: the "world" of sound on that device, which also holds the listener position.</li>
+  <li><b>Buffer</b>: raw audio data, loaded once.</li>
+  <li><b>Source</b>: something that is playing a buffer, at a position and with a volume and pitch. You can play the same buffer from many sources at once.</li>
+</ul>
+
+<h2>Play a generated beep</h2>
+<script type="text/x-code" data-file="HelloOpenAl.cs">
+  #:package Ahwoo.Brutal.OpenAl@2026.10.3
+
+  using System.Runtime.InteropServices;
+  using Brutal.OpenAlApi;
+
+  using var device = Alc.OpenDevice();   // default output device
+  Run(device);
+
+  static void Run(Device device)
+  {
+      using var context = device.CreateContext();
+      context.MakeCurrent();
+
+      // One second of a 440 Hz sine wave as 16-bit mono PCM.
+      const int SAMPLE_RATE = 44_100;
+      var pcm = new short[SAMPLE_RATE];
+      for (var i = 0; i < pcm.Length; i++)
+          pcm[i] = (short)(Math.Sin(2 * Math.PI * 440 * i / SAMPLE_RATE) * short.MaxValue * 0.5);
+
+      var buffer = Al.GenBuffer();
+      buffer.SetData(AlFormat.Mono16, MemoryMarshal.AsBytes<short>(pcm), SAMPLE_RATE);
+
+      var source = Al.GenSource();
+      source.Buffer = buffer;
+      source.Play();
+
+      while (source.State == AlSourceState.Playing)
+          Thread.Sleep(10);
+
+      // Buffers and sources aren't IDisposable, so delete them by hand.
+      Al.DeleteSources([source]);
+      Al.DeleteBuffers([buffer]);
+      Context.MakeCurrent(null);   // release the context before it is destroyed
+  }
+</script>
+
+<h2>Retro sound effects from code</h2>
+<p>Because you write the samples yourself, you can create classic chip-style effects with no audio files at all. Here's a "coin" sound: two quick square-wave notes.</p>
+<script type="text/x-code">
+  static short[] Coin(int sampleRate = 44_100)
+  {
+      var a = Square(sampleRate, 988, 0.06f);    // B5
+      var b = Square(sampleRate, 1319, 0.20f);   // E6
+      return [.. a, .. b];
+  }
+
+  static short[] Square(int rate, float freq, float seconds)
+  {
+      var n = (int)(rate * seconds);
+      var data = new short[n];
+      for (var i = 0; i < n; i++)
+      {
+          var phase = (i * freq / rate) % 1f;
+          var envelope = 1f - (float)i / n;                  // linear fade-out
+          data[i] = (short)((phase < 0.5f ? 1 : -1) * 6000 * envelope);
+      }
+      return data;
+  }
+</script>
+<p>Put the samples in a buffer once at startup and call <code>source.Play()</code> whenever the player grabs a coin. Instant <a href="/design/game-feel">juice</a>.</p>
+
+<h2>Which audio package?</h2>
+<div class="table-wrap"><table>
+<tr><th>Option</th><th>Good for</th><th>Notes</th></tr>
+<tr><td><code>Brutal.OpenAl</code></td><td>3D positional sound, full control</td><td>Free. You handle file decoding and streaming yourself.</td></tr>
+<tr><td><code>Brutal.Sdl.Mixer</code></td><td>Simple 2D games already using SDL</td><td><code>mixer.CreateTrack()</code>, <code>track.SetAudio(...)</code>, <code>track.Play(0)</code>; see <code>DemoSdl.cs</code></td></tr>
+<tr><td><code>Brutal.Fmod</code></td><td>Professional, designer-driven audio (FMOD Studio)</td><td>Needs your own FMOD licence and native libraries.</td></tr>
+</table></div>
+
+<div class="exercise"><b>EXERCISE</b>
+<p>Write three generated sound effects: <b>jump</b> (a rising pitch sweep), <b>hurt</b> (noise using <code>Random</code>) and <b>coin</b>. Load them into three buffers at startup and play them from keys 1, 2 and 3 inside a GLFW window loop.</p>
+</div>
+</article>

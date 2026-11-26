@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>2D rendering: sprites, batches &amp; cameras · GameGuy</title>
+<meta name="description" content="How a 2D renderer works, including sprite batching, texture atlases, draw order, cameras and pixel-perfect scaling, built on OpenGL with BRUTAL.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="/assets/js/lessons.js" defer></script>
+<script src="/assets/js/main.js" defer></script>
+</head>
+<body data-track="enginedev" data-slug="rendering-2d">
+<article class="lesson">
+<h1>2D rendering: sprites, batches &amp; cameras</h1>
+
+<p>BRUTAL deliberately has no renderer, which means writing one is your job, and it's one of the most rewarding parts of engine work. A 2D renderer has a simple goal: draw thousands of textured rectangles with <b>as few draw calls as possible</b>.</p>
+
+<h2>Why batch?</h2>
+<p>Every <code>OpenGl.Draw</code> call has a CPU cost (state validation and driver work). 5,000 sprites drawn one at a time means 5,000 draw calls, which can be slow. The same 5,000 sprites in one vertex buffer is <b>1 draw call</b>. <code>DemoBox2D.cs</code> already does this: it writes every box into one <code>vertices</code> array and calls <code>Draw</code> once.</p>
+
+<h2>A sprite batch</h2>
+<script type="text/x-code">
+  [StructLayout(LayoutKind.Sequential)]
+  record struct SpriteVertex(float2 Pos, float2 Uv, uint Color);    // 20 bytes
+
+  sealed class SpriteBatch
+  {
+      private readonly SpriteVertex[] _verts = new SpriteVertex[6 * 8192];   // up to 8192 sprites
+      private int _count;
+      private GlTexture _texture;
+
+      public void Begin(GlTexture atlas, float4x4 camera) { _texture = atlas; _count = 0; /* set uniform */ }
+
+      public void Draw(float2 pos, float2 size, float4 uvRect, uint color = 0xFFFFFFFF)
+      {
+          if (_count + 6 > _verts.Length) Flush();
+          float x0 = pos.X, y0 = pos.Y, x1 = pos.X + size.X, y1 = pos.Y + size.Y;
+          float u0 = uvRect.X, v0 = uvRect.Y, u1 = uvRect.Z, v1 = uvRect.W;
+          _verts[_count++] = new(new(x0, y0), new(u0, v0), color);
+          _verts[_count++] = new(new(x1, y0), new(u1, v0), color);
+          _verts[_count++] = new(new(x1, y1), new(u1, v1), color);
+          _verts[_count++] = new(new(x0, y0), new(u0, v0), color);
+          _verts[_count++] = new(new(x1, y1), new(u1, v1), color);
+          _verts[_count++] = new(new(x0, y1), new(u0, v1), color);
+      }
+
+      public void Flush()
+      {
+          if (_count == 0) return;
+          // bind texture + VAO, then:
+          // OpenGl.BufferData(GlBindTarget.ArrayBuffer, _verts.AsSpan(0, _count), GlBufferUsage.DynamicDraw);
+          // OpenGl.Draw(GlTopology.Triangles, _count, 1, 0, 0);
+          _count = 0;
+      }
+
+      public void End() => Flush();
+  }
+</script>
+<p>A batch breaks, forcing a <code>Flush</code>, whenever the <b>texture</b> or <b>shader</b> changes. That's why games pack sprites into a <b>texture atlas</b>, one big image holding many sprites, so that a whole level can draw from one texture.</p>
+
+<h2>Draw order</h2>
+<ul>
+  <li><b>Layers</b>: background → tiles → entities → particles → UI. Draw them in order (the painter's algorithm).</li>
+  <li><b>Y-sorting</b> for top-down games: sort sprites by their feet's Y position so characters walk behind trees properly.</li>
+  <li>Sort by <code>(layer, texture)</code> to keep batches large.</li>
+</ul>
+
+<h2>Cameras</h2>
+<script type="text/x-code">
+  // World units -> clip space (-1..1). Pixel-art: VIEW = 320x180 world pixels.
+  static float4x4 CameraMatrix(float2 camPos, float2 view) =>
+      float4x4.CreateTranslation(-MathF.Round(camPos.X), -MathF.Round(camPos.Y), 0)
+      * float4x4.CreateOrthographicOffCenter(0, view.X, view.Y, 0, -1, 1);   // y-down like screens
+
+  // Smooth follow (render-time only, not in the fixed step)
+  cam = float2.Lerp(cam, player.Pos - view / 2, 1 - MathF.Exp(-8f * frameDt));
+</script>
+<p><code>1 - Exp(-k·dt)</code> gives you smoothing that behaves the same at any frame rate. A plain <code>Lerp(a, b, 0.1f)</code> is faster at 144 FPS than at 60.</p>
+
+<h2>Pixel-perfect rendering</h2>
+<ol>
+  <li>Render the world into a small <b>offscreen framebuffer</b> (e.g. 320×180) with <code>GL_NEAREST</code> textures.</li>
+  <li>Draw that framebuffer to the window at the largest <b>integer</b> scale that fits, and letterbox the rest. This is the same idea as SDL's <code>IntegerScale</code> (see <a href="/brutal/sdl-2d">the SDL lesson</a>).</li>
+  <li>Round the camera and sprite positions to whole world pixels.</li>
+</ol>
+
+<div class="exercise"><b>EXERCISE</b>
+<p>Starting from <code>DemoTexturedQuad.cs</code> and <code>HelloOpenGl.cs</code>, build a <code>SpriteBatch</code> that draws 10,000 bouncing 8×8 sprites from a single atlas texture in one draw call. Show the draw-call count and frame time in an ImGui window.</p>
+</div>
+</article>
+</body>
+</html>

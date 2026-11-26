@@ -1,0 +1,168 @@
+---
+title: Building a real game loop
+description: Build a fixed-timestep game loop in BRUTAL with Glfw.Time, an accumulator, polled input and interpolation.
+---
+<article class="lesson">
+<h1>Building a real game loop</h1>
+
+<div class="objectives"><b>You will learn</b>
+<ul>
+  <li>The structure of a game loop: input, update and render</li>
+  <li>Why physics and gameplay should step at a <b>fixed</b> rate</li>
+  <li>The accumulator pattern used in BRUTAL's own <code>DemoBox2D</code></li>
+  <li>How to read held keys and turn them into movement</li>
+</ul></div>
+
+<p>In BRUTAL, <b>you own the loop</b>. Get this right and everything else gets easier. The engine-level theory (variable vs fixed vs semi-fixed timesteps) is covered in <a href="/enginedev/main-loop">The main loop &amp; fixed timestep</a>, which has a live demo. This lesson is the hands-on BRUTAL version.</p>
+
+<h2>The shape of every loop</h2>
+<script type="text/x-code">
+  while (running)
+  {
+      ProcessInput();     // poll OS events, read keys
+      Update(dt);         // move things, run rules
+      Render();           // draw the current state
+  }
+</script>
+<p>The hard question is <em>what <code>dt</code> should be</em>. If you use the real time since the last frame (a variable <code>dt</code>), a frame hitch can make objects tunnel through walls, and the same jump reaches different heights at 30 and 144 FPS. Games that want consistent, reproducible behaviour <b>update in fixed steps</b> and render as fast as the display allows.</p>
+
+<h2>The accumulator pattern</h2>
+<p>This is exactly what BRUTAL's <code>samples/Demo/DemoBox2D.cs</code> does:</p>
+<script type="text/x-code" data-file="from DemoBox2D.cs">
+  const float TIME_STEP = 1.0f / 60.0f;
+  var previousTime = Glfw.Time;   // seconds since Glfw.Init, as a double
+  var accumulator = 0.0;
+
+  while (!window.ShouldClose)
+  {
+      Glfw.PollEvents();
+
+      // Step physics at a fixed rate whatever the refresh rate, capping the catch-up after a stall.
+      var now = Glfw.Time;
+      accumulator += Math.Min(now - previousTime, 0.25);
+      previousTime = now;
+      while (accumulator >= TIME_STEP)
+      {
+          world.Step(TIME_STEP, 4);
+          accumulator -= TIME_STEP;
+      }
+
+      // ...render...
+      window.SwapBuffers();
+  }
+</script>
+<ul>
+  <li><b>Accumulate</b> real time as it passes.</li>
+  <li><b>Spend</b> it in fixed 1/60 s chunks. On a 144 Hz monitor some frames do 0 updates; on a 30 Hz one, each frame does about 2.</li>
+  <li><b>Clamp</b> the real time to 0.25 s, so a breakpoint or window drag doesn't trigger hundreds of catch-up steps (the "spiral of death").</li>
+</ul>
+
+<h2>A complete, playable loop</h2>
+<p>Here's a full program you can run. It has a "player" moved with <kbd>WASD</kbd> or the arrow keys, with acceleration and friction. The game state shows in the window title, so you don't need a renderer yet.</p>
+
+<script type="text/x-code" data-file="GameLoop.cs">
+  #:package Ahwoo.Brutal.Glfw@2026.10.5
+  #:package Ahwoo.Brutal.Numerics@2026.10.2
+
+  using Brutal.GlfwApi;
+  using Brutal.Numerics;
+
+  if (!Glfw.Init())
+      throw new InvalidOperationException("Failed to initialize GLFW");
+
+  try { Run(); }
+  finally { Glfw.Terminate(); }
+
+  static void Run()
+  {
+      using var window = Glfw.CreateWindow(new GlfwWindow.CreateInfo
+      {
+          Title = "Game Loop",
+          Size = new int2(800, 450),
+      });
+
+      window.OnKey += (w, key, _, action, _) =>
+      {
+          if (key == GlfwKey.Escape && action == GlfwKeyAction.Press)
+              w.ShouldClose = true;
+      };
+
+      var state = new Player();
+      const double STEP = 1.0 / 60.0;
+      var previous = Glfw.Time;
+      var accumulator = 0.0;
+      var ticks = 0L;
+
+      while (!window.ShouldClose)
+      {
+          Glfw.PollEvents();
+
+          var now = Glfw.Time;
+          accumulator += Math.Min(now - previous, 0.25);
+          previous = now;
+
+          var input = ReadInput(window);           // sample once per frame
+          while (accumulator >= STEP)
+          {
+              state.Update(input, (float)STEP);    // deterministic: always 1/60
+              accumulator -= STEP;
+              ticks++;
+          }
+
+          if (ticks % 6 == 0)                      // ~10 title updates per second
+              window.Title = $"pos=({state.Position.X:F1}, {state.Position.Y:F1})  vel={state.Velocity.Length():F1}  ticks={ticks}";
+
+          Thread.Sleep(1);                         // no vsync without a GL context; be kind to the CPU
+      }
+  }
+
+  static float2 ReadInput(GlfwWindow w)
+  {
+      bool Down(GlfwKey k) => w.GetKey(k) == GlfwKeyAction.Press;
+      var x = (Down(GlfwKey.D) || Down(GlfwKey.Right) ? 1 : 0) - (Down(GlfwKey.A) || Down(GlfwKey.Left) ? 1 : 0);
+      var y = (Down(GlfwKey.W) || Down(GlfwKey.Up) ? 1 : 0) - (Down(GlfwKey.S) || Down(GlfwKey.Down) ? 1 : 0);
+      var dir = new float2(x, y);
+      return dir.LengthSquared() > 1 ? float2.Normalize(dir) : dir;  // no faster diagonals
+  }
+
+  class Player
+  {
+      public float2 Position;
+      public float2 Velocity;
+
+      const float ACCEL = 900f;     // units / s²
+      const float MAX_SPEED = 220f; // units / s
+      const float FRICTION = 10f;   // higher = stops faster
+
+      public void Update(float2 input, float dt)
+      {
+          Velocity += input * ACCEL * dt;
+          if (input.LengthSquared() == 0)
+              Velocity -= Velocity * MathF.Min(FRICTION * dt, 1f);  // ease to a stop
+          if (Velocity.Length() > MAX_SPEED)
+              Velocity = float2.Normalize(Velocity) * MAX_SPEED;
+          Position += Velocity * dt;
+      }
+  }
+</script>
+
+<h2>Things to notice</h2>
+<ul>
+  <li><b>Input is sampled once per frame</b> and reused by every fixed step in that frame.</li>
+  <li><b>Gameplay knows nothing about frame rate.</b> <code>Update</code> always receives 1/60, so the game behaves identically on every machine. This is also what makes replays and lockstep networking possible.</li>
+  <li><b>Normalising diagonal input</b> stops the classic bug where moving diagonally is 41% faster.</li>
+  <li>Once you have a GL context, replace <code>Thread.Sleep(1)</code> with <code>Glfw.SwapInterval(1)</code> and <code>window.SwapBuffers()</code> to wait for vsync.</li>
+</ul>
+
+<div class="callout info"><span class="t">INTERPOLATION (NEXT LEVEL)</span>
+<p>After the inner <code>while</code> loop, <code>accumulator / STEP</code> is a value between 0 and 1 that says how far you are between the last state and the next. If you keep the previous position and render <code>Lerp(prev, current, alpha)</code>, movement looks smooth even on 144 Hz screens. See <a href="/enginedev/main-loop">the engine lesson</a> for a live demo.</p>
+</div>
+
+<div class="exercise"><b>EXERCISE</b>
+<ol>
+  <li>Change <code>STEP</code> to 1/20. The game should play the same, just with coarser steps. Does it?</li>
+  <li>Add a dash on <kbd>Space</kbd> (a "just pressed" event from <code>OnKey</code>) that doubles max speed for 0.2 s. Store a timer in <code>Player</code> and count it down in <code>Update</code>.</li>
+  <li>Add <code>Glfw.Time</code>-based FPS counting and show it in the title next to ticks/sec. Ticks/sec should stay at 60 whatever the FPS.</li>
+</ol>
+</div>
+</article>

@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Choosing: engine or framework? · GameGuy</title>
+<meta name="description" content="A practical decision guide for choosing between Godot, Unity, GameMaker and BRUTAL based on your game, team and goals.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="/assets/js/lessons.js" defer></script>
+<script src="/assets/js/main.js" defer></script>
+</head>
+<body data-track="engines" data-slug="choosing">
+<article class="lesson">
+<h1>Choosing: engine or framework?</h1>
+
+<h2>The comparison</h2>
+<div class="table-wrap"><table>
+<tr><th></th><th>BRUTAL</th><th>Godot</th><th>Unity</th><th>GameMaker</th></tr>
+<tr><td>Type</td><td>C# framework</td><td>Engine + editor</td><td>Engine + editor</td><td>Engine + editor</td></tr>
+<tr><td>Language</td><td>C# (.NET 10)</td><td>GDScript, C#</td><td>C#</td><td>GML</td></tr>
+<tr><td>Cost</td><td>Free; credits + logo required</td><td>Free (MIT)</td><td>Free and paid tiers</td><td>Free non-commercial; paid commercial</td></tr>
+<tr><td>Open source</td><td>✓</td><td>✓</td><td>✗</td><td>✗</td></tr>
+<tr><td>2D</td><td>Build it (SDL makes it easy)</td><td>Excellent</td><td>Good</td><td>Excellent</td></tr>
+<tr><td>3D</td><td>Build it (Vulkan, Jolt, glTF)</td><td>Good</td><td>Excellent</td><td>Minimal</td></tr>
+<tr><td>Editor</td><td>✗ (make one with ImGui)</td><td>✓</td><td>✓</td><td>✓</td></tr>
+<tr><td>Control and performance ceiling</td><td>Highest</td><td>Medium</td><td>Medium–High</td><td>Medium</td></tr>
+<tr><td>Learning how engines work</td><td>Best</td><td>Good (source available)</td><td>Low</td><td>Low</td></tr>
+</table></div>
+
+<h2>Quick decision guide</h2>
+<ul>
+  <li><b>"I want to ship my first 2D game this year, and I'm an artist."</b> → GameMaker or Godot.</li>
+  <li><b>"I want a 3D game with a big asset ecosystem and console plans."</b> → Unity (or Godot, depending on scope).</li>
+  <li><b>"I'm a programmer and want to understand everything, or build my own engine."</b> → BRUTAL.</li>
+  <li><b>"My game is a huge simulation (colony, space, logistics) and needs to run for 10 years."</b> → BRUTAL, which is the RimWorld/Waylith and Kitten Space Agency path.</li>
+  <li><b>"I'm in a game jam this weekend."</b> → Whatever you already know best.</li>
+</ul>
+
+<h2>Skills that transfer everywhere</h2>
+<p>Whatever you choose, these lessons apply: the <a href="/enginedev/main-loop">fixed timestep</a>, <a href="/csharp/classes-structs">value vs reference types</a>, <a href="/enginedev/entities">components and ECS</a>, <a href="/design/game-feel">game feel</a> and <a href="/pixel/canvas-palette">pixel-art fundamentals</a>. Learning BRUTAL makes you better at every engine, because you'll understand what they do behind the scenes.</p>
+
+<div class="callout brutal"><span class="t">GAMEGUY'S RECOMMENDATION</span>
+<p>Learn on <b>BRUTAL</b> to understand how games work. Prototype ideas in whatever is fastest for you. Ship using the tool that fits the game.</p>
+</div>
+</article>
+</body>
+</html>

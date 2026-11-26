@@ -1,0 +1,63 @@
+---
+title: "Tooling: logging, debug UI & profiling"
+description: Build engine tooling with BRUTAL, including structured logging, ImGui debug panels, frame profiling, debug drawing and GPU captures with RenderDoc.
+---
+<article class="lesson">
+<h1>Tooling: logging, debug UI &amp; profiling</h1>
+
+<p>The real difference between an engine and a pile of code is its <b>tools</b>. Good tools make every hour of development count for more. BRUTAL gives you strong ingredients for building them.</p>
+
+<h2>1. Logging with categories</h2>
+<script type="text/x-code">
+  using static Brutal.Logging.DefaultCategory;
+
+  LogSystem.Initialize(b => { b.SetMinimumLevel(LogLevel.Debug); b.AddConsole(); });
+  var physicsLog = LogCategory.Make("Physics");
+  var assetsLog  = LogCategory.Make("Assets");
+
+  assetsLog.Info("Loaded hero.png (16x64)");
+  physicsLog.Warning($"Step took {ms:F2} ms (budget 4 ms)");
+</script>
+<p>Categories let you filter the noise ("show only Assets warnings"). In release builds, write logs to a file in the user's data folder, so players can send them to you with bug reports.</p>
+
+<h2>2. Debug UI with ImGui</h2>
+<ul>
+  <li>An <b>entity inspector</b>: click an entity and edit its components live.</li>
+  <li><b>Tuning panels</b>: sliders for movement constants (see <a href="/brutal/imgui">the ImGui lesson</a>).</li>
+  <li><b>Cheats</b>: god mode, teleport, spawn, time scale.</li>
+  <li>Toggle the whole thing with <kbd>F1</kbd>, and compile it out of release builds with <code>#if DEBUG</code>.</li>
+</ul>
+
+<h2>3. Frame profiling</h2>
+<script type="text/x-code">
+  sealed class Profiler
+  {
+      private readonly Dictionary<string, double> _ms = [];
+      public readonly struct Scope(Profiler p, string name) : IDisposable
+      {
+          private readonly long _start = Stopwatch.GetTimestamp();
+          public void Dispose() => p._ms[name] = Stopwatch.GetElapsedTime(_start).TotalMilliseconds;
+      }
+      public Scope Measure(string name) => new(this, name);
+      public IReadOnlyDictionary<string, double> Last => _ms;
+  }
+
+  using (profiler.Measure("Physics")) world.Step(STEP, 4);
+  using (profiler.Measure("Render"))  renderer.DrawScene();
+  // ImGui/ImPlot: show the bars + a rolling 240-frame graph
+</script>
+<p>Watch the <b>worst</b> frames, not the average. A game that averages 2 ms but spikes to 40 ms will feel worse than one that runs at a steady 10 ms. For deeper investigation, use <code>dotnet-trace</code> and <code>dotnet-counters</code>, and BRUTAL's <code>Monitor.Host</code> for runtime monitoring.</p>
+
+<h2>4. Debug drawing</h2>
+<p>An immediate-mode <code>Debug.Line(a, b, color)</code> / <code>Debug.Box(rect, color)</code> API, flushed once per frame, is incredibly useful for hitboxes, AI paths, raycasts and physics contacts. Store the lines in a <code>NativeList</code> and draw them with one batched draw call.</p>
+
+<h2>5. GPU captures</h2>
+<p><code>Brutal.RenderDoc</code> (plus <code>RenderDoc.ImGui</code>) lets you trigger a <a href="https://renderdoc.org/">RenderDoc</a> capture from a button in your game, then inspect every draw call, texture and shader input. Start with <code>samples/Demo/DemoRenderDoc.cs</code>.</p>
+
+<h2>6. Toward an editor</h2>
+<p>Once you have the inspector, debug drawing, hot reload and serialisation, you're close to an editor. ImGui's docking branch, which BRUTAL binds, can lay out a scene view, a hierarchy panel, an inspector and an asset browser. <code>NativeFileDialog</code> provides open/save dialogs.</p>
+
+<div class="exercise"><b>EXERCISE</b>
+<p>Build an <kbd>F1</kbd> overlay for Coin Dash (on GLFW + OpenGL + ImGui) with: an FPS and worst-frame display, profiler bars for Update and Render, a time-scale slider (0.1×–2×), and a "show hitboxes" toggle that uses debug drawing.</p>
+</div>
+</article>

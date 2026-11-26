@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Level design fundamentals · GameGuy</title>
+<meta name="description" content="Teach without text, pace challenge, guide the eye, and build levels around the introduce, develop, twist, conclude structure.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="/assets/js/lessons.js" defer></script>
+<script src="/assets/js/main.js" defer></script>
+</head>
+<body data-track="design" data-slug="level-design">
+<article class="lesson">
+<h1>Level design fundamentals</h1>
+
+<h2>Levels teach</h2>
+<p>The best tutorials don't feel like tutorials. A level teaches a mechanic by letting the player discover it safely, then tests it, and then combines it with other mechanics.</p>
+<div class="callout tip"><span class="t">INTRODUCE → DEVELOP → TWIST → CONCLUDE</span>
+<ol>
+  <li><b>Introduce</b>: show the mechanic where failing costs nothing (a small gap over solid ground).</li>
+  <li><b>Develop</b>: raise the stakes (a real pit).</li>
+  <li><b>Twist</b>: combine it with something new (a gap with a moving platform).</li>
+  <li><b>Conclude</b>: a final test that proves mastery, followed by a reward.</li>
+</ol>
+</div>
+
+<h2>Guiding the player</h2>
+<ul>
+  <li><b>Lines of sight</b>: let players see their goal before they can reach it.</li>
+  <li><b>Breadcrumbs</b>: coins and collectibles trace the intended path, including where to jump.</li>
+  <li><b>Contrast</b>: walkable surfaces should read clearly against the background (see <a href="/pixel/lines-clusters">readability</a>).</li>
+  <li><b>Landmarks</b>: memorable shapes help players find their way in larger levels.</li>
+  <li><b>Gating</b>: show a locked door early and give the key later. That creates anticipation.</li>
+</ul>
+
+<h2>Pacing</h2>
+<p>Alternate tension and release. Put a calm area after a hard section, and a breather before a boss. Plot intensity against time and aim for rising waves, not a flat line or a constant spike.</p>
+
+<h2>Grey-boxing</h2>
+<p>Build levels from plain blocks first, as in Coin Dash's string map. Test the <em>gameplay</em> before spending any time on art. In BRUTAL, a text-file level format plus hot reload (<a href="/enginedev/assets">assets lesson</a>) gives you a very fast loop: edit the text, save, and play the new level immediately.</p>
+
+<script type="text/x-code" data-lang="none" data-file="level2.txt (introduce → develop → twist)">
+  ....................
+  ...............c....
+  ..............###...
+  ....................
+  ..........c.........
+  .........##.........
+  ....c...............
+  ...###.....c....c...
+  .p.....c..###.......
+  #####.###......#####
+</script>
+
+<div class="exercise"><b>EXERCISE</b>
+<p>Design three Coin Dash levels that teach "short hop vs full jump" (variable jump height). Level 1 introduces it, level 2 develops it with low ceilings, and level 3 twists it by combining it with pits. Grey-box them as text, playtest them, and revise.</p>
+</div>
+</article>
+</body>
+</html>

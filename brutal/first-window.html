@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Your first window with GLFW · GameGuy</title>
+<meta name="description" content="Open a window with Brutal.Glfw, handle keyboard input with events, and shut down cleanly.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="/assets/js/lessons.js" defer></script>
+<script src="/assets/js/main.js" defer></script>
+</head>
+<body data-track="brutal" data-slug="first-window">
+<article class="lesson">
+<h1>Your first window with GLFW</h1>
+
+<div class="objectives"><b>You will learn</b>
+<ul>
+  <li>How to initialise and terminate GLFW safely</li>
+  <li>How to create a window with <code>GlfwWindow.CreateInfo</code></li>
+  <li>How to react to keys with the <code>OnKey</code> event</li>
+  <li>Why the order of <code>using</code> declarations matters</li>
+</ul></div>
+
+<p><a href="https://www.glfw.org/">GLFW</a> is a small, battle-tested C library for windows, OpenGL/Vulkan contexts and input. <code>Brutal.Glfw</code> wraps it in idiomatic C#, with events, properties and <code>IDisposable</code>.</p>
+
+<h2>The complete program</h2>
+<p>Save this as <code>FirstWindow.cs</code> and run it with <code>dotnet run FirstWindow.cs</code>:</p>
+
+<script type="text/x-code" data-file="FirstWindow.cs">
+  #:package Ahwoo.Brutal.Glfw@2026.10.5
+  #:package Ahwoo.Brutal.Numerics@2026.10.2
+
+  using Brutal.GlfwApi;
+  using Brutal.Numerics;
+
+  if (!Glfw.Init())
+  {
+      var errorCode = Glfw.GetError(out var errorMessage);
+      throw new InvalidOperationException($"Failed to initialize GLFW: {errorCode}, {errorMessage}");
+  }
+
+  try
+  {
+      Run();
+  }
+  finally
+  {
+      Glfw.Terminate(); // always runs, even if Run throws
+  }
+
+  static void Run()
+  {
+      // Disposed when Run returns, BEFORE Glfw.Terminate.
+      using var window = Glfw.CreateWindow(new GlfwWindow.CreateInfo
+      {
+          Title = "My First BRUTAL Window",
+          Size = new int2(960, 540),
+          Monitor = GlfwMonitor.Null, // windowed mode
+          Share = null,               // no shared context
+      });
+
+      window.OnKey += (handle, key, scanCode, action, mods) =>
+      {
+          if (key == GlfwKey.Escape)
+              handle.ShouldClose = true;
+
+          if (key == GlfwKey.Space && action == GlfwKeyAction.Press)
+              Console.WriteLine("Jump!");
+      };
+
+      while (!window.ShouldClose)
+          Glfw.PollEvents();
+  }
+</script>
+
+<h2>Line by line</h2>
+<h3>1. Library-wide state</h3>
+<p><code>Glfw.Init()</code> sets up GLFW for the whole process. If it fails, <code>Glfw.GetError</code> tells you why, which is often a missing display on Linux. <code>Glfw.Terminate()</code> sits in a <code>finally</code> block so it always runs.</p>
+
+<h3>2. The window, owned by <code>using</code></h3>
+<p><code>Glfw.CreateWindow</code> returns a <code>GlfwWindow</code>, which is <code>IDisposable</code>. Declaring it with <code>using var</code> inside <code>Run()</code> means it is destroyed when <code>Run</code> returns. That happens <em>before</em> the <code>finally</code> block terminates GLFW, so the window is destroyed while GLFW is still alive. This "dispose in reverse order of creation" pattern appears in every BRUTAL sample. It is covered in depth in <a href="/csharp/disposal">IDisposable &amp; resource lifetime</a>.</p>
+
+<h3>3. Events instead of polling</h3>
+<p><code>window.OnKey</code> is an ordinary C# event. The handler receives:</p>
+<div class="table-wrap"><table>
+<tr><th>Parameter</th><th>Type</th><th>Meaning</th></tr>
+<tr><td><code>handle</code></td><td><code>GlfwWindow</code></td><td>The window that got the key</td></tr>
+<tr><td><code>key</code></td><td><code>GlfwKey</code></td><td>Layout-independent key, e.g. <code>GlfwKey.W</code>, <code>GlfwKey.Left</code></td></tr>
+<tr><td><code>scanCode</code></td><td><code>int</code></td><td>Platform-specific physical key code</td></tr>
+<tr><td><code>action</code></td><td><code>GlfwKeyAction</code></td><td><code>Press</code>, <code>Release</code> or <code>Repeat</code></td></tr>
+<tr><td><code>mods</code></td><td><code>GlfwModifier</code></td><td>Shift, Ctrl, Alt and Super flags</td></tr>
+</table></div>
+<p>Events only fire <em>inside</em> <code>Glfw.PollEvents()</code>. If you stop calling it, the OS will report your window as "Not Responding".</p>
+
+<h3>4. Polling instead of events</h3>
+<p>For movement you usually want to know "is the key held <em>right now</em>?". Use <code>GetKey</code>:</p>
+<script type="text/x-code">
+  bool left  = window.GetKey(GlfwKey.A) == GlfwKeyAction.Press;
+  bool right = window.GetKey(GlfwKey.D) == GlfwKeyAction.Press;
+</script>
+<p>Other useful events on <code>GlfwWindow</code> include <code>OnMouseButton</code>, <code>OnCursorPos</code> and <code>OnFramebufferSize</code>. You can change the window title at any time through the <code>Title</code> property.</p>
+
+<div class="callout warn"><span class="t">GOTCHA: CLIENT API</span>
+<p>This window has no graphics context yet. To draw with OpenGL you'll add <code>WindowHint</code> calls <em>before</em> creating the window. For Vulkan you tell GLFW not to create a GL context. Both are covered in <a href="/brutal/opengl">Drawing with OpenGL</a>.</p>
+</div>
+
+<div class="exercise"><b>EXERCISE</b>
+<ol>
+  <li>Make <kbd>F</kbd> print the window size and <kbd>T</kbd> change the title to the current time.</li>
+  <li>Subscribe to <code>OnCursorPos</code> and print the mouse position. Notice how often it fires.</li>
+  <li>Count how many times the <code>while</code> loop runs per second. Why is the number so huge? (Hint: nothing is waiting for vsync yet.)</li>
+</ol>
+</div>
+</article>
+</body>
+</html>

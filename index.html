@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GameGuy</title>
+<meta name="description" content="Learn game development with the BRUTAL C# framework, C#, engine development, game design and pixel art.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="/assets/js/lessons.js" defer></script>
+<script src="/assets/js/main.js" defer></script>
+</head>
+<body>
+<main>
+  <section class="wrap hero">
+    <div>
+      <span class="badge">Free · open curriculum</span>
+      <h1>Make games.<br>Build <em>engines</em>.<br>Push pixels.</h1>
+      <p class="lead">GameGuy teaches game development from the ground up. The main track is <b>BRUTAL</b>, the open-source C# framework that RimWorld's Waylith engine and Kitten Space Agency are built on. Around it are lessons on modern C#, how engines are built, game design and pixel art.</p>
+      <div class="cta">
+        <a class="btn" href="/brutal/">Start the BRUTAL track</a>
+        <a class="btn secondary" href="/csharp/">New to C#? Start here</a>
+      </div>
+    </div>
+    <canvas class="hero-art" id="hero" width="160" height="120" aria-label="Animated pixel art: a little hero runs and jumps over a gap to grab a coin"></canvas>
+  </section>
+
+  <section class="wrap section">
+    <h2>Learning paths</h2>
+    <div class="grid" id="tracks"></div>
+  </section>
+
+  <section class="wrap section">
+    <h2>Suggested roadmap</h2>
+    <ol class="roadmap">
+      <li><b>C# essentials</b><span>Value types, events, Span&lt;T&gt; and using/IDisposable.</span></li>
+      <li><b>BRUTAL foundations</b><span>Set up .NET 10, open a window and learn the packages.</span></li>
+      <li><b>Loop, draw, play</b><span>Fixed timestep, SDL/OpenGL drawing, input, physics and audio.</span></li>
+      <li><b>Design + pixels</b><span>Core loops, game feel and sprites that read well at small sizes.</span></li>
+      <li><b>Ship Coin Dash</b><span>Your first complete BRUTAL game, credits included.</span></li>
+      <li><b>Build an engine</b><span>Layers, ECS, assets and tools, ending in a mini engine of your own.</span></li>
+    </ol>
+  </section>
+
+  <section class="wrap section">
+    <div class="card featured">
+      <div>
+        <h2 style="margin-bottom:12px">Why BRUTAL?</h2>
+        <p>Most engines give you an editor, a scene graph and a renderer, and you build inside them. BRUTAL gives you <b>fast, allocation-aware C# building blocks</b> instead: windowing, Vulkan/OpenGL, ImGui, Box2D, Jolt, audio and networking. You put them together into the game, or the engine, you want.</p>
+        <p>That makes it a great way to learn how games really work, with no "magic" hidden behind an editor.</p>
+        <a class="btn" href="/brutal/what-is-brutal">What is BRUTAL?</a>
+      </div>
+      <script type="text/x-code" data-lang="csharp" data-file="HelloBrutal.cs">
+        #:package Ahwoo.Brutal.Glfw@2026.10.5
+        #:package Ahwoo.Brutal.Numerics@2026.10.2
+        using Brutal.GlfwApi;
+        using Brutal.Numerics;
+
+        Glfw.Init();
+        using var window = Glfw.CreateWindow(new GlfwWindow.CreateInfo
+        {
+            Title = "Hello GameGuy",
+            Size = new int2(640, 480),
+        });
+
+        while (!window.ShouldClose)
+            Glfw.PollEvents();
+      </script>
+    </div>
+  </section>
+</main>
+
+<script>
+  /* Track cards */
+  document.addEventListener("DOMContentLoaded", function () {
+    var grid = document.getElementById("tracks");
+    grid.innerHTML = (window.GG_TRACKS || []).map(function (t) {
+      return '<a class="card track-card" href="/' + t.id + '/"><span class="tag" style="background:' + t.color + '">' + t.icon +
+        '</span><h3>' + t.title + '</h3><p>' + t.blurb.replace(/</g, "&lt;") + '</p><div data-track-progress="' + t.id + '"></div></a>';
+    }).join("");
+    // main.js has already run (defer order), so fill progress here
+    var done = {}; try { done = JSON.parse(localStorage.getItem("gg-done") || "{}"); } catch (e) {}
+    grid.querySelectorAll("[data-track-progress]").forEach(function (node) {
+      var t = GG_TRACKS.filter(function (x) { return x.id === node.dataset.trackProgress; })[0];
+      var n = t.lessons.filter(function (l) { return done[t.id + "/" + l[0]]; }).length;
+      var pct = Math.round(n / t.lessons.length * 100);
+      node.innerHTML = '<div class="meta"><span>' + t.lessons.length + ' lessons</span><span>' + n + '/' + t.lessons.length +
+        ' done</span></div><div class="progress"><span style="width:' + pct + '%"></span></div>';
+    });
+  });
+
+  /* Hero pixel scene: tiny fixed-timestep loop, the same idea taught in the lessons */
+  (function () {
+    var c = document.getElementById("hero"), g = c.getContext("2d");
+    var W = 160, H = 120, T = 8, groundY = 96;
+    var reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var P = { sky: "#1d1b26", star: "#5d5a6b", dirt: "#7a4a2e", grass: "#1f9d72", grassHi: "#5fd39c", hero: "#e8483b", skin: "#ffd2a6", eye: "#1d1b26", coin: "#ffc566", coinHi: "#fff4c2", hill: "#2a2638" };
+    var stars = []; for (var i = 0; i < 30; i++) stars.push([(i * 53) % W, (i * 37) % 70]);
+    var hero = { x: 10, y: groundY - 12, vy: 0, t: 0 }, coin = { x: 74, y: 58, got: 0 };
+    var gapStart = 72, gapEnd = 88;
+    function rect(x, y, w, h, col) { g.fillStyle = col; g.fillRect(Math.round(x), Math.round(y), w, h); }
+    function step(dt) {
+      hero.t += dt;
+      hero.x += 40 * dt;
+      if (hero.x > W + 10) { hero.x = -10; coin.got = 0; }
+      var onGround = hero.y >= groundY - 12;
+      if (onGround && hero.x > gapStart - 22 && hero.x < gapStart - 18) hero.vy = -135;
+      hero.vy += 300 * dt; hero.y += hero.vy * dt;
+      if (hero.y > groundY - 12 && !(hero.x + 6 > gapStart && hero.x + 2 < gapEnd && hero.y < groundY)) { hero.y = groundY - 12; hero.vy = 0; }
+      if (!coin.got && Math.abs(hero.x - coin.x) < 8 && Math.abs(hero.y - coin.y) < 14) coin.got = 1;
+      if (coin.got === 0 && hero.x < coin.x - 30) coin.y = 58 + Math.sin(hero.t * 4) * 2;
+    }
+    function draw() {
+      rect(0, 0, W, H, P.sky);
+      stars.forEach(function (s, i) { if ((i + Math.floor(hero.t * 2)) % 7) rect(s[0], s[1], 1, 1, P.star); });
+      for (var x = 0; x < W; x += 2) { var h = 18 + Math.round(Math.sin(x / 14) * 6); rect(x, groundY - h, 2, h, P.hill); }
+      for (var tx = 0; tx < W; tx += T) {
+        if (tx >= gapStart && tx < gapEnd) continue;
+        rect(tx, groundY, T, H - groundY, P.dirt); rect(tx, groundY, T, 3, P.grass); rect(tx + 1, groundY, 2, 1, P.grassHi);
+        rect(tx + 3, groundY + 8, 1, 1, "#5c3620"); rect(tx + 6, groundY + 14, 1, 1, "#5c3620");
+      }
+      if (!coin.got) { rect(coin.x - 3, coin.y - 4, 6, 8, P.coin); rect(coin.x - 2, coin.y - 3, 1, 4, P.coinHi); }
+      else rect(coin.x - 1, coin.y - 10 - (hero.t * 20 % 10), 2, 2, P.coinHi);
+      var hx = hero.x, hy = hero.y, run = Math.floor(hero.t * 10) % 2;
+      rect(hx, hy, 8, 8, P.hero); rect(hx + 2, hy + 2, 5, 4, P.skin); rect(hx + 5, hy + 3, 1, 1, P.eye);
+      rect(hx + 1, hy + 8, 6, 2, P.hero);
+      rect(hx + (run ? 1 : 2), hy + 10, 2, 2, P.eye); rect(hx + (run ? 5 : 4), hy + 10, 2, 2, P.eye);
+      g.fillStyle = "#ece9f5"; g.font = "8px monospace"; g.fillText("SCORE " + (coin.got ? "0010" : "0000"), 4, 10);
+    }
+    var acc = 0, last = performance.now(), DT = 1 / 60;
+    function frame(now) {
+      acc += Math.min((now - last) / 1000, 0.25); last = now;
+      while (acc >= DT) { step(DT); acc -= DT; }
+      draw(); requestAnimationFrame(frame);
+    }
+    if (reduce) { hero.x = 40; draw(); } else requestAnimationFrame(frame);
+  })();
+</script>
+</body>
+</html>

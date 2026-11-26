@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Delegates, lambdas &amp; events · GameGuy</title>
+<meta name="description" content="Understand C# delegates, lambdas, Action/Func and events, the mechanism behind window.OnKey in BRUTAL, and how closures can cause allocations.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="/assets/js/lessons.js" defer></script>
+<script src="/assets/js/main.js" defer></script>
+</head>
+<body data-track="csharp" data-slug="delegates-events">
+<article class="lesson">
+<h1>Delegates, lambdas &amp; events</h1>
+
+<p>When you write <code>window.OnKey += (handle, key, _, _, _) =&gt; …</code> in BRUTAL, you're using all three of these features at once. Here's what's going on.</p>
+
+<h2>Delegates: methods as values</h2>
+<script type="text/x-code">
+  delegate float Easing(float t);              // a type for "function float -> float"
+
+  static float Linear(float t) => t;
+  static float EaseOutQuad(float t) => 1 - (1 - t) * (1 - t);
+
+  Easing ease = EaseOutQuad;                   // store a method in a variable
+  Console.WriteLine(ease(0.5f));               // 0.75
+
+  // Built-in generic delegates mean you rarely need to declare your own:
+  Func<float, float> f = EaseOutQuad;          // takes float, returns float
+  Action<string> say = Console.WriteLine;      // returns nothing
+</script>
+
+<h2>Lambdas</h2>
+<script type="text/x-code">
+  Func<float, float> easeInCubic = t => t * t * t;
+  Action onDeath = () => Console.WriteLine("Game over");
+
+  var shakeStrength = 4f;
+  Action shake = () => camera.Shake(shakeStrength);   // captures shakeStrength (a closure)
+</script>
+
+<h2>Events: safe subscriptions</h2>
+<script type="text/x-code">
+  sealed class Player
+  {
+      public event Action<int>? Damaged;           // others may += / -=, only Player can invoke
+      public event Action? Died;
+
+      private int _hp = 3;
+      public void Hit()
+      {
+          _hp--;
+          Damaged?.Invoke(_hp);                    // ?. : no subscribers = no call
+          if (_hp <= 0) Died?.Invoke();
+      }
+  }
+
+  var player = new Player();
+  player.Damaged += hp => Console.WriteLine($"Ouch! {hp} left");
+  player.Died += () => Console.WriteLine("Respawning...");
+</script>
+<p>Events <b>decouple</b> systems. The <code>Player</code> doesn't know that the HUD, the audio system and the achievement tracker are all listening.</p>
+
+<h2>Reading BRUTAL's OnKey</h2>
+<script type="text/x-code">
+  // In Brutal.Glfw (simplified):
+  //   public delegate void GlfwKeyCallback(GlfwWindow window, GlfwKey key, int scanCode, GlfwKeyAction action, GlfwModifier mods);
+  //   public event GlfwKeyCallback? OnKey;
+
+  window.OnKey += (handle, key, _, action, _) =>     // _ discards unused parameters
+  {
+      if (key == GlfwKey.Escape && action == GlfwKeyAction.Press)
+          handle.ShouldClose = true;
+  };
+</script>
+<p>Internally, BRUTAL receives the native GLFW callback, converts the raw <code>int</code>s into C# enums, and raises the event. If your handler throws, the exception is collected (by <code>Glfw.ExceptionAggregator</code>) instead of crashing inside native code. Throwing an exception through native C frames is undefined behaviour.</p>
+
+<h2>Performance notes</h2>
+<ul>
+  <li>Creating a lambda that <b>captures</b> variables allocates a closure object. Do it once at setup, not every frame.</li>
+  <li>Lambdas that capture nothing are cached by the compiler. Mark them <code>static</code> (<code>static t =&gt; t * t</code>) to have the compiler enforce that.</li>
+  <li>Always <code>-=</code> handlers from long-lived publishers. A forgotten subscription keeps the subscriber alive, which is a classic leak.</li>
+</ul>
+
+<div class="exercise"><b>EXERCISE: AN EVENT BUS</b>
+<p>Make a static <code>GameEvents</code> class with <code>event Action&lt;int&gt;? CoinCollected</code> and <code>event Action? LevelWon</code>. Have a <code>Hud</code> class and a <code>SoundPlayer</code> class subscribe in their constructors and unsubscribe in a <code>Dispose()</code> method. Simulate collecting 5 coins.</p>
+</div>
+</article>
+</body>
+</html>

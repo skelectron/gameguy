@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Classes, structs &amp; records · GameGuy</title>
+<meta name="description" content="Value types vs reference types in C#, why games use structs for data, and how records and readonly structs fit in.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="/assets/js/lessons.js" defer></script>
+<script src="/assets/js/main.js" defer></script>
+</head>
+<body data-track="csharp" data-slug="classes-structs">
+<article class="lesson">
+<h1>Classes, structs &amp; records</h1>
+
+<p>This is the most important C# lesson for game performance. The difference between a <code>class</code> and a <code>struct</code> decides where your data lives, how it is copied, and whether the garbage collector has to deal with it.</p>
+
+<h2>Reference types (class)</h2>
+<script type="text/x-code">
+  class Enemy
+  {
+      public string Name = "Slime";
+      public int Hp = 10;
+  }
+
+  var a = new Enemy();       // allocated on the GC heap
+  var b = a;                 // copies the REFERENCE: both point to the same object
+  b.Hp = 0;
+  Console.WriteLine(a.Hp);   // 0
+</script>
+
+<h2>Value types (struct)</h2>
+<script type="text/x-code">
+  struct Particle
+  {
+      public float X, Y, Vx, Vy;
+      public float Life;
+  }
+
+  var p = new Particle { X = 1 };   // no heap allocation
+  var q = p;                         // copies ALL the data
+  q.X = 99;
+  Console.WriteLine(p.X);            // 1: p is untouched
+</script>
+
+<div class="diagram">
+<svg viewBox="0 0 640 170" font-family="Inter, sans-serif" font-size="13" fill="currentColor">
+  <text x="10" y="20" font-weight="700">Particle[] (structs): one block, contiguous</text>
+  <g stroke="currentColor" stroke-width="2" fill="#2f7de1" fill-opacity=".2">
+    <rect x="10" y="30" width="70" height="34"/><rect x="80" y="30" width="70" height="34"/><rect x="150" y="30" width="70" height="34"/><rect x="220" y="30" width="70" height="34"/><rect x="290" y="30" width="70" height="34"/>
+  </g>
+  <g text-anchor="middle" font-size="11"><text x="45" y="51">x y vx vy</text><text x="115" y="51">x y vx vy</text><text x="185" y="51">x y vx vy</text><text x="255" y="51">x y vx vy</text><text x="325" y="51">…</text></g>
+  <text x="10" y="100" font-weight="700">Enemy[] (classes): array of pointers to objects scattered on the heap</text>
+  <g stroke="currentColor" stroke-width="2" fill="#e8483b" fill-opacity=".2">
+    <rect x="10" y="110" width="40" height="30"/><rect x="50" y="110" width="40" height="30"/><rect x="90" y="110" width="40" height="30"/>
+    <rect x="260" y="130" width="70" height="30"/><rect x="420" y="105" width="70" height="30"/><rect x="560" y="135" width="70" height="30"/>
+  </g>
+  <g stroke="#e8483b" stroke-width="2" fill="none"><path d="M30 125 C 120 160, 200 160, 260 145"/><path d="M70 125 C 200 90, 330 90, 420 118"/><path d="M110 125 C 300 170, 480 170, 560 150"/></g>
+</svg>
+</div>
+<p>When you loop over 10,000 particles, the struct array is read from memory in one sequential stream, which is very cache-friendly. The class array makes the CPU jump around memory for every element, and the GC has to track 10,000 separate objects. This is the core idea behind <a href="/enginedev/entities">ECS / data-oriented design</a>.</p>
+
+<h2>When to use which</h2>
+<div class="table-wrap"><table>
+<tr><th>Use a <b>struct</b> when…</th><th>Use a <b>class</b> when…</th></tr>
+<tr><td>It's small data: vectors (<code>float2</code>), colours, rectangles, particles, components</td><td>It has identity and a lifetime: a window, a scene, a game service</td></tr>
+<tr><td>You store many of them in arrays</td><td>It's shared and referenced from many places</td></tr>
+<tr><td>Copying it is cheap (roughly ≤ 32 bytes is a common guideline)</td><td>It's large or needs inheritance</td></tr>
+</table></div>
+
+<h2>Structs: the gotchas</h2>
+<script type="text/x-code">
+  var list = new List<Particle> { new() };
+  // list[0].X = 5;           // ERROR: list[0] returns a COPY; modifying it would be lost
+
+  var arr = new Particle[1];
+  arr[0].X = 5;               // OK: array elements are accessed in place
+
+  ref var p = ref arr[0];     // a reference to the element itself
+  p.Life -= 0.1f;
+</script>
+<p><code>ref</code> locals and <code>Span&lt;T&gt;</code> (next lesson) let you edit structs in place without copying them.</p>
+
+<h2>readonly struct and record struct</h2>
+<script type="text/x-code">
+  // Immutable value: safe to pass around, and the compiler can avoid defensive copies.
+  readonly struct Rect(float x, float y, float w, float h)
+  {
+      public float X { get; } = x;
+      public float Y { get; } = y;
+      public float W { get; } = w;
+      public float H { get; } = h;
+      public bool Overlaps(in Rect o) => X < o.X + o.W && o.X < X + W && Y < o.Y + o.H && o.Y < Y + H;
+  }
+
+  // Records generate Equals, GetHashCode, ToString and with-expressions.
+  record struct Vertex(float2 Position, float3 Color);       // from BRUTAL's HelloOpenGl!
+  readonly record struct Input(bool Left, bool Right, bool JumpHeld);
+
+  var v2 = new Vertex(default, new float3(1, 0, 0)) with { Position = new float2(0, 1) };
+</script>
+<p>The <code>in</code> parameter passes a struct by read-only reference, which avoids copying a big struct on every call.</p>
+
+<h2>Classes for systems</h2>
+<script type="text/x-code">
+  sealed class Game                    // sealed: no subclasses, slightly faster calls
+  {
+      private readonly List<Enemy> _enemies = [];
+      public int Score { get; private set; }   // property: public read, private write
+
+      public void Kill(Enemy e)
+      {
+          _enemies.Remove(e);
+          Score += 10;
+      }
+  }
+</script>
+
+<div class="exercise"><b>EXERCISE</b>
+<ol>
+  <li>Make a <code>struct Particle</code> and a <code>class ParticleObj</code> with the same fields. Create 1,000,000 of each in arrays and time a loop that updates them. Compare the times and <code>GC.GetTotalMemory(false)</code>.</li>
+  <li>Write <code>readonly record struct Aabb(float X, float Y, float W, float H)</code> with an <code>Overlaps</code> method, and test it on 5 cases, including rectangles that only touch at the edges.</li>
+</ol>
+</div>
+</article>
+</body>
+</html>

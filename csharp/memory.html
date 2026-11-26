@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The GC &amp; zero-allocation gameplay · GameGuy</title>
+<meta name="description" content="How the .NET garbage collector affects games, how to find per-frame allocations, and the patterns that remove them.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="/assets/js/lessons.js" defer></script>
+<script src="/assets/js/main.js" defer></script>
+</head>
+<body data-track="csharp" data-slug="memory">
+<article class="lesson">
+<h1>The GC &amp; zero-allocation gameplay</h1>
+
+<h2>How the GC works (the short version)</h2>
+<p>Every <code>new</code> of a class, array, string, boxed value or capturing lambda allocates on the <b>managed heap</b>. When enough has been allocated, the garbage collector pauses (or slows) your threads to find unreachable objects and reclaim them. .NET's GC is very good, but a game frame is only 16.6 ms (8.3 ms at 120 Hz). The fewer allocations per frame, the fewer collections, and the smoother the game.</p>
+
+<div class="callout brutal"><span class="t">THE GOAL</span>
+<p>Allocate freely while <b>loading</b>. Allocate (close to) <b>nothing</b> per frame during <b>gameplay</b>. BRUTAL's foundation packages exist to make this practical.</p>
+</div>
+
+<h2>Measure first</h2>
+<script type="text/x-code">
+  var before = GC.GetAllocatedBytesForCurrentThread();
+  for (var i = 0; i < 600; i++) Update(1f / 60f);   // 10 seconds of gameplay
+  var after = GC.GetAllocatedBytesForCurrentThread();
+  Console.WriteLine($"Allocated {after - before} bytes; gen0 GCs: {GC.CollectionCount(0)}");
+</script>
+<p>For more detail, use <code>dotnet-counters monitor</code> (look at GC heap size and gen0 count) or the allocation profilers in Visual Studio and Rider.</p>
+
+<h2>The usual suspects and their fixes</h2>
+<div class="table-wrap"><table>
+<tr><th>Allocates</th><th>Fix</th></tr>
+<tr><td><code>new List&lt;Enemy&gt;()</code> every frame</td><td>Create once, then <code>.Clear()</code> and reuse it</td></tr>
+<tr><td><code>$"Score: {score}"</code> every frame</td><td>Rebuild only when <code>score</code> changes, or format into a <code>Span&lt;char&gt;</code>/UTF-8 buffer (BRUTAL's ImGui uses a shared scratch buffer that you reset each frame)</td></tr>
+<tr><td>LINQ in <code>Update</code></td><td>Plain <code>for</code>/<code>foreach</code> loops</td></tr>
+<tr><td>Lambdas capturing locals in the loop</td><td>Create handlers once at setup</td></tr>
+<tr><td><code>new Bullet()</code> (a class) for each shot</td><td>Struct bullets in a pool (array + count)</td></tr>
+<tr><td>Boxing: a struct stored as <code>object</code> or a non-generic interface</td><td>Generics, e.g. <code>where T : IFoo</code></td></tr>
+<tr><td><code>params object[]</code> logging calls</td><td>Interpolated-string handlers, or check the log level first</td></tr>
+<tr><td><code>foreach</code> over an <code>IEnumerable&lt;T&gt;</code> interface</td><td><code>foreach</code> over the concrete <code>List&lt;T&gt;</code>/array/span (struct enumerator)</td></tr>
+</table></div>
+
+<h2>Formatting without garbage</h2>
+<script type="text/x-code">
+  Span<char> buf = stackalloc char[32];
+  if (score.TryFormat(buf, out var written))
+  {
+      ReadOnlySpan<char> text = buf[..written];
+      // pass text to an API that accepts ReadOnlySpan<char>
+  }
+
+  // UTF-8 straight away (what native libraries want):
+  Span<byte> utf8 = stackalloc byte[32];
+  System.Text.Unicode.Utf8.TryWrite(utf8, $"COINS {score}", out var bytes);
+</script>
+
+<h2>Native memory</h2>
+<p>For large, long-lived buffers such as tile maps, vertex data and audio buffers, BRUTAL's <code>Mem</code> and <code>NativeList&lt;T&gt;</code> put data <em>outside</em> the GC heap entirely. The GC never scans or moves it. The cost is that you must free it, which is what the <a href="/csharp/disposal">next lesson</a> is about.</p>
+
+<h2>Useful runtime settings</h2>
+<ul>
+  <li><code>&lt;ServerGarbageCollector&gt;false&lt;/ServerGarbageCollector&gt;</code> (the default for apps) is right for games.</li>
+  <li><code>GCSettings.LatencyMode = GCLatencyMode.SustainedLowLatency</code> during gameplay reduces blocking gen2 collections.</li>
+  <li>Calling <code>GC.Collect()</code> on a loading screen, after loading a level, clears out load-time garbage before gameplay starts.</li>
+</ul>
+
+<div class="exercise"><b>EXERCISE</b>
+<p>Take the <a href="/brutal/capstone">Coin Dash</a> HUD, which uses <code>$"COINS {score}/{taken.Length}  TIME {time:F1}"</code>, and measure its allocations per second. Then change it so the coins part is rebuilt only when <code>score</code> changes and the time is formatted into a reused buffer. Measure again.</p>
+</div>
+</article>
+</body>
+</html>

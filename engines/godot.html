@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Godot · GameGuy</title>
+<meta name="description" content="An overview of the Godot engine (nodes, scenes, GDScript and C#), with a first script and a comparison with BRUTAL.">
+<link rel="icon" href="/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="/assets/css/style.css">
+<script src="/assets/js/lessons.js" defer></script>
+<script src="/assets/js/main.js" defer></script>
+</head>
+<body data-track="engines" data-slug="godot">
+<article class="lesson">
+<h1>Godot</h1>
+
+<div class="table-wrap"><table>
+<tr><th>License</th><td>MIT. Completely free, with no royalties and no splash-screen requirement.</td></tr>
+<tr><th>Languages</th><td>GDScript (Python-like), C# (.NET), and C++ via GDExtension</td></tr>
+<tr><th>Strengths</th><td>Lightweight editor, excellent 2D support, scene and node system, open source</td></tr>
+<tr><th>Platforms</th><td>Windows, macOS, Linux, Android, iOS and Web (consoles through third-party porting partners)</td></tr>
+</table></div>
+
+<h2>Mental model: nodes and scenes</h2>
+<p>Everything is a <b>node</b> (<code>Sprite2D</code>, <code>CollisionShape2D</code>, <code>Timer</code>…). Nodes form a tree, and a saved tree is a <b>scene</b>. A scene can be placed inside other scenes, so a "Player" scene can be used in every level scene. Nodes talk to each other through <b>signals</b>, which work like C# events.</p>
+
+<h2>A platformer player in C#</h2>
+<script type="text/x-code" data-file="Player.cs">
+  using Godot;
+
+  public partial class Player : CharacterBody2D
+  {
+      [Export] public float Speed = 110f;
+      [Export] public float JumpSpeed = 330f;
+      private float _gravity = 950f;
+
+      public override void _PhysicsProcess(double delta)   // Godot's fixed-step callback
+      {
+          var v = Velocity;
+          if (!IsOnFloor()) v.Y += _gravity * (float)delta;
+          if (Input.IsActionJustPressed("jump") && IsOnFloor()) v.Y = -JumpSpeed;
+          v.X = Input.GetAxis("move_left", "move_right") * Speed;
+          Velocity = v;
+          MoveAndSlide();                                   // built-in collision resolution
+      }
+  }
+</script>
+<p>Compare this with <a href="/brutal/capstone">Coin Dash</a>. <code>_PhysicsProcess</code> is the engine's fixed timestep, <code>Input.IsActionJustPressed</code> is an input map like the one in <a href="/enginedev/platform-input">the engine track</a>, and <code>MoveAndSlide</code> replaces the hand-written <code>MoveX</code>/<code>MoveY</code>. Godot calls <em>your</em> code, which is the inversion of control described in <a href="/enginedev/engine-vs-framework">Engine vs framework</a>.</p>
+
+<h2>Godot vs BRUTAL</h2>
+<div class="table-wrap"><table>
+<tr><th></th><th>Godot</th><th>BRUTAL</th></tr>
+<tr><td>Editor</td><td>Full visual editor</td><td>None (you build tools with ImGui)</td></tr>
+<tr><td>Time to prototype</td><td>Minutes</td><td>Hours</td></tr>
+<tr><td>Memory and data layout control</td><td>Limited</td><td>Complete</td></tr>
+<tr><td>C# version</td><td>.NET support in Godot 4</td><td>.NET 10, designed around low allocation</td></tr>
+<tr><td>Best for</td><td>Most 2D indie games, learning game design, small teams with artists</td><td>Custom engines, simulation-heavy games, programmers who want control</td></tr>
+</table></div>
+
+<div class="callout tip"><span class="t">LEARN</span>
+<p>Start with the official docs at <a href="https://docs.godotengine.org/">docs.godotengine.org</a> and the "Your first 2D game" tutorial.</p>
+</div>
+</article>
+</body>
+</html>
